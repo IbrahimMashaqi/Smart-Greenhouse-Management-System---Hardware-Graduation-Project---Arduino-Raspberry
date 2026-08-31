@@ -170,6 +170,45 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     telemetryRef.current = telemetry;
   }, [telemetry]);
 
+  const isWaterBelow25 = (t: TelemetryData) =>
+    t.waterTankDist >= t.waterTankEmptyThreshold * 0.75;
+
+  const isSprayBelow25 = (t: TelemetryData) =>
+    t.sprayTankDist >= t.sprayTankEmptyThreshold * 0.75;
+
+  // Show warning dialog when tank level drops below 25%
+  useEffect(() => {
+    const waterLow = isWaterBelow25(telemetry);
+    const sprayLow = isSprayBelow25(telemetry);
+
+    if (waterLow && !prevWaterLowRef.current) {
+      prevWaterLowRef.current = true;
+      setLowWaterWarning({
+        isOpen: true,
+        message: 'Water level in the tank is below 25%. Irrigation has been cancelled.',
+        type: 'water',
+      });
+    } else if (!waterLow) {
+      prevWaterLowRef.current = false;
+    }
+
+    if (sprayLow && !prevSprayLowRef.current) {
+      prevSprayLowRef.current = true;
+      setLowWaterWarning({
+        isOpen: true,
+        message: 'Spray tank level is below 25%. Spray has been cancelled.',
+        type: 'spray',
+      });
+    } else if (!sprayLow) {
+      prevSprayLowRef.current = false;
+    }
+  }, [
+    telemetry.waterTankDist,
+    telemetry.sprayTankDist,
+    telemetry.waterTankEmptyThreshold,
+    telemetry.sprayTankEmptyThreshold,
+  ]);
+
   // Setup Serial callbacks
   useEffect(() => {
     serialManager.setCallbacks({
@@ -181,17 +220,19 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       },
       onWarning: (warning) => {
         if (warning === 'WATER_LOW' && !prevWaterLowRef.current) {
-          const t = telemetryRef.current;
-          if (!t.waterTankOK) {
-            prevWaterLowRef.current = true;
-            setLowWaterWarning({ isOpen: true, message: 'Water level in the tank is too low. Irrigation has been cancelled by the controller.', type: 'water' });
-          }
+          prevWaterLowRef.current = true;
+          setLowWaterWarning({
+            isOpen: true,
+            message: 'Water level in the tank is below 25%. Irrigation has been cancelled by the controller.',
+            type: 'water',
+          });
         } else if (warning === 'SPRAY_LOW' && !prevSprayLowRef.current) {
-          const t = telemetryRef.current;
-          if (!t.sprayTankOK) {
-            prevSprayLowRef.current = true;
-            setLowWaterWarning({ isOpen: true, message: 'Spray tank level is too low. Spray has been cancelled by the controller.', type: 'spray' });
-          }
+          prevSprayLowRef.current = true;
+          setLowWaterWarning({
+            isOpen: true,
+            message: 'Spray tank level is below 25%. Spray has been cancelled by the controller.',
+            type: 'spray',
+          });
         } else if (warning === 'WATER_OK') {
           prevWaterLowRef.current = false;
         } else if (warning === 'SPRAY_OK') {
@@ -306,8 +347,15 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   // Quick Action Triggers
   const startWateringCycle = async () => {
     const t = telemetryRef.current;
-    if (!t.waterTankOK) {
-      setLowWaterWarning({ isOpen: true, message: 'Water level in the tank is too low. Fill the tank to continue irrigation.', type: 'water' });
+    if (!t.waterTankOK || isWaterBelow25(t)) {
+      if (isWaterBelow25(t)) prevWaterLowRef.current = true;
+      setLowWaterWarning({
+        isOpen: true,
+        message: isWaterBelow25(t)
+          ? 'Water level in the tank is below 25%. Fill the tank to continue irrigation.'
+          : 'Water level in the tank is too low. Fill the tank to continue irrigation.',
+        type: 'water',
+      });
       return;
     }
     await sendCommand('WATER_START');
@@ -315,8 +363,15 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const startSprayCycle = async () => {
     const t = telemetryRef.current;
-    if (!t.sprayTankOK) {
-      setLowWaterWarning({ isOpen: true, message: 'Spray tank level is too low. Fill the tank to continue spraying.', type: 'spray' });
+    if (!t.sprayTankOK || isSprayBelow25(t)) {
+      if (isSprayBelow25(t)) prevSprayLowRef.current = true;
+      setLowWaterWarning({
+        isOpen: true,
+        message: isSprayBelow25(t)
+          ? 'Spray tank level is below 25%. Fill the tank to continue spraying.'
+          : 'Spray tank level is too low. Fill the tank to continue spraying.',
+        type: 'spray',
+      });
       return;
     }
     await sendCommand('SPRAY_START');
@@ -328,8 +383,6 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const closeLowWaterWarning = () => {
-    prevWaterLowRef.current = false;
-    prevSprayLowRef.current = false;
     setLowWaterWarning({ isOpen: false, message: '', type: 'water' });
   };
 
@@ -404,26 +457,6 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           sprayTankDist: newSprayTankDist,
           sprayTankOK: newSprayTankOK,
         };
-
-        // Edge-detect low tank warnings (25% threshold)
-        const water25Percent = prev.waterTankEmptyThreshold * 0.75;
-        const spray25Percent = prev.sprayTankEmptyThreshold * 0.75;
-        const waterLow = newWaterTankDist >= water25Percent;
-        const sprayLow = newSprayTankDist >= spray25Percent;
-
-        if (waterLow && !prevWaterLowRef.current) {
-          prevWaterLowRef.current = true;
-          setLowWaterWarning({ isOpen: true, message: 'Water level in the tank is below 25%. Irrigation has been cancelled.', type: 'water' });
-        } else if (!waterLow && prevWaterLowRef.current) {
-          prevWaterLowRef.current = false;
-        }
-
-        if (sprayLow && !prevSprayLowRef.current) {
-          prevSprayLowRef.current = true;
-          setLowWaterWarning({ isOpen: true, message: 'Spray tank level is below 25%. Spray has been cancelled.', type: 'spray' });
-        } else if (!sprayLow && prevSprayLowRef.current) {
-          prevSprayLowRef.current = false;
-        }
 
         const mockJson = JSON.stringify(updatedData);
         addLog('IN', mockJson);
