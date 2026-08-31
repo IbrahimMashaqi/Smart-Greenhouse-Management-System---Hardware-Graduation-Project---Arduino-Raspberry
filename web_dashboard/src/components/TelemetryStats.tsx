@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 
 export const TelemetryStats: React.FC = () => {
-  const { telemetry } = useGreenhouse();
+  const { telemetry, startWateringCycle } = useGreenhouse();
 
   // Temperature logic
   const isHighTemp = telemetry.temperature > telemetry.tempThreshold;
@@ -146,11 +146,20 @@ export const TelemetryStats: React.FC = () => {
               <span className="text-2xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>{avgSoil}</span>
               <span className="text-xs ml-1" style={{ color: 'var(--text-muted)' }}>ADC avg</span>
             </div>
-            <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
-              isSoilDry ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-            }`}>
-              {telemetry.soilStatus}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${
+                isSoilDry ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'
+              }`}>
+                {telemetry.soilStatus}
+              </span>
+              <button
+                onClick={startWateringCycle}
+                disabled={telemetry.pump}
+                className="px-2 py-0.5 text-[10px] font-semibold rounded bg-sky-50 hover:bg-sky-100 text-sky-600 border border-sky-200 disabled:opacity-50 transition-all"
+              >
+                {telemetry.pump ? 'Watering...' : 'Water'}
+              </button>
+            </div>
           </div>
           <div className="flex justify-between text-[11px] mt-2" style={{ color: 'var(--text-muted)' }}>
             <span>S1: <strong style={{ color: 'var(--text-primary)' }}>{telemetry.soil1}</strong></span>

@@ -9,7 +9,8 @@ import {
   Trash2,
   Play,
   ShowerHead,
-  Timer
+  Timer,
+  SprayCan
 } from 'lucide-react';
 
 const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -21,6 +22,7 @@ export const WateringScheduler: React.FC = () => {
     toggleSchedule,
     deleteSchedule,
     startWateringCycle,
+    startSprayCycle,
     telemetry,
   } = useGreenhouse();
 
@@ -71,6 +73,15 @@ export const WateringScheduler: React.FC = () => {
           >
             <ShowerHead className="w-4 h-4" />
             {telemetry.pump ? 'Watering Active...' : 'Manual Instant Water'}
+          </button>
+
+          <button
+            onClick={startSprayCycle}
+            disabled={telemetry.sprayRunning}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs transition-all shadow-md shadow-emerald-200 disabled:opacity-50"
+          >
+            <SprayCan className="w-4 h-4" />
+            {telemetry.sprayRunning ? 'Spraying Active...' : 'Manual Instant Spray'}
           </button>
 
           <button
