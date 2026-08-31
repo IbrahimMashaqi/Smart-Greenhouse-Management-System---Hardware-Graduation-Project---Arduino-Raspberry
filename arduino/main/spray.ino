@@ -1,7 +1,7 @@
 // SPRAY + WASH SYSTEM
 
-#define STEP_PIN 51
-#define DIR_PIN  49
+#define STEP_PIN 33
+#define DIR_PIN  35
 
 #define LIMIT_START_PIN 47
 #define LIMIT_END_PIN   8
@@ -114,24 +114,6 @@ bool tank1HasWaterForWash() {
   return true;
 }
 
-void waitForMedicineConfirmation() {
-  Serial.println();
-  Serial.println("حان موعد الرش");
-  Serial.println("حط الدواء والماء في خزان الرش");
-  Serial.println("اكتب o للتأكيد والبدء");
-
-  while (true) {
-    if (Serial.available()) {
-      char c = Serial.read();
-
-      if (c == 'o' || c == 'O') {
-        Serial.println("تم التأكيد. بدء الرش...");
-        break;
-      }
-    }
-  }
-}
-
 void washAtStart() {
   Serial.println();
   Serial.println("START WASH MODE");
@@ -178,8 +160,6 @@ void runSprayCycle() {
     sprayRunning = false;
     return;
   }
-
-  waitForMedicineConfirmation();
 
   if (!tank2HasSprayLiquid()) {
     Serial.println("رغم التأكيد، قراءة خزان الرش تقول فاضي. تم إلغاء الرش.");
