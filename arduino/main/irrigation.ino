@@ -72,6 +72,16 @@ void runIrrigation() {
   if (isEndPressed()) { Serial.println("END already pressed"); return; }
   if (!tankHasWater()) { pumpOff(); return; }
 
+  // Check if water is at least 25% full
+  waterTankDist = readDistanceCM();
+  float water25Percent = waterTankEmptyThreshold * 0.75;
+  if (waterTankDist >= water25Percent) {
+    Serial.println("WARNING:WATER_LOW");
+    Serial.println("الماء في الخزان أقل من 25% - تم إلغاء الري");
+    pumpOff();
+    return;
+  }
+
   digitalWrite(DIR_PIN, BACKWARD_DIR);
   pumpOn();
   while (!isEndPressed()) { stepOnce(); }

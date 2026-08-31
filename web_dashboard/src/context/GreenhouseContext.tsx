@@ -62,6 +62,10 @@ interface GreenhouseContextType {
   confirmMedicine: () => Promise<void>;
   startSprayCycle: () => Promise<void>;
   startWateringCycle: () => Promise<void>;
+
+  // Low water warning
+  lowWaterWarning: { isOpen: boolean; message: string };
+  closeLowWaterWarning: () => void;
 }
 
 const GreenhouseContext = createContext<GreenhouseContextType | undefined>(undefined);
@@ -74,6 +78,7 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [logs, setLogs] = useState<SerialLog[]>([]);
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
   const [medicineModalOpen, setMedicineModalOpen] = useState<boolean>(false);
+  const [lowWaterWarning, setLowWaterWarning] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
 
   // Default initial watering schedules
   const [schedules, setSchedules] = useState<WateringSchedule[]>([
@@ -145,6 +150,13 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       onError: (err) => {
         addLog('SYS', `Error: ${err.message}`);
         setStatus('ERROR');
+      },
+      onWarning: (warning) => {
+        if (warning === 'WATER_LOW') {
+          setLowWaterWarning({ isOpen: true, message: 'الماء في الخزان أقل من 25% - تم إلغاء الري' });
+        } else if (warning === 'SPRAY_LOW') {
+          setLowWaterWarning({ isOpen: true, message: ' الرش في الخزان أقل من 25% - تم إلغاء الرش' });
+        }
       },
     });
   }, [handleNewTelemetry, addLog]);
@@ -265,6 +277,10 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setMedicineModalOpen(false);
   };
 
+  const closeLowWaterWarning = () => {
+    setLowWaterWarning({ isOpen: false, message: '' });
+  };
+
   // Toggle Simulation Mode
   const toggleSimulation = () => {
     if (isSimulating) {
@@ -319,6 +335,12 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const newSprayTankDist = Math.max(1, Math.min(prev.sprayTankEmptyThreshold + 2, Number((prev.sprayTankDist + sprayTankVariation).toFixed(1))));
         const newWaterTankOK = newWaterTankDist < prev.waterTankEmptyThreshold;
         const newSprayTankOK = newSprayTankDist < prev.sprayTankEmptyThreshold;
+
+        // Check for low water warnings (25% threshold)
+        const water25Percent = prev.waterTankEmptyThreshold * 0.75;
+        const spray25Percent = prev.sprayTankEmptyThreshold * 0.75;
+        const waterLow = newWaterTankDist >= water25Percent;
+        const sprayLow = newSprayTankDist >= spray25Percent;
 
         const updatedData: TelemetryData = {
           ...prev,
@@ -427,6 +449,8 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         confirmMedicine,
         startSprayCycle,
         startWateringCycle,
+        lowWaterWarning,
+        closeLowWaterWarning,
       }}
     >
       {children}

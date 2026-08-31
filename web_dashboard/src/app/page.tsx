@@ -9,6 +9,8 @@ import { WateringScheduler } from '@/components/WateringScheduler';
 import { TelemetryCharts } from '@/components/TelemetryCharts';
 import { SerialConsole } from '@/components/SerialConsole';
 import { MedicineModal } from '@/components/MedicineModal';
+import { LowWaterWarning } from '@/components/LowWaterWarning';
+import { useGreenhouse } from '@/context/GreenhouseContext';
 import {
   LayoutDashboard,
   SlidersHorizontal,
@@ -27,6 +29,7 @@ const TABS: { id: Page; label: string; Icon: React.ElementType }[] = [
 
 export default function Home() {
   const [activePage, setActivePage] = useState<Page>('dashboard');
+  const { lowWaterWarning, closeLowWaterWarning } = useGreenhouse();
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--surface-2)' }}>
@@ -121,6 +124,13 @@ export default function Home() {
 
       {/* Medicine Confirmation Modal */}
       <MedicineModal />
+
+      {/* Low Water Warning Modal */}
+      <LowWaterWarning 
+        isOpen={lowWaterWarning.isOpen} 
+        message={lowWaterWarning.message} 
+        onClose={closeLowWaterWarning} 
+      />
     </div>
   );
 }

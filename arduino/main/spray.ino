@@ -161,6 +161,17 @@ void runSprayCycle() {
     return;
   }
 
+  // Check if spray tank is at least 25% full
+  sprayTankDist = readDistanceCMSpray(TANK2_TRIG_PIN, TANK2_ECHO_PIN);
+  float spray25Percent = sprayTankEmptyThreshold * 0.75;
+  if (sprayTankDist >= spray25Percent) {
+    Serial.println("WARNING:SPRAY_LOW");
+    Serial.println(" الرش في الخزان أقل من 25% - تم إلغاء الرش");
+    allOff();
+    sprayRunning = false;
+    return;
+  }
+
   if (!tank2HasSprayLiquid()) {
     Serial.println("رغم التأكيد، قراءة خزان الرش تقول فاضي. تم إلغاء الرش.");
     sprayOff();

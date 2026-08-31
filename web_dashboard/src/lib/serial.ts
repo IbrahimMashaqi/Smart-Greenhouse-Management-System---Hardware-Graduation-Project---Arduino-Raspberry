@@ -15,15 +15,18 @@ export class SerialManager {
   private onDataCallback: ((data: TelemetryData, rawJson: string) => void) | null = null;
   private onLogCallback: ((direction: 'IN' | 'OUT' | 'SYS', text: string) => void) | null = null;
   private onErrorCallback: ((err: Error) => void) | null = null;
+  private onWarningCallback: ((warning: string) => void) | null = null;
 
   public setCallbacks(callbacks: {
     onData?: (data: TelemetryData, rawJson: string) => void;
     onLog?: (direction: 'IN' | 'OUT' | 'SYS', text: string) => void;
     onError?: (err: Error) => void;
+    onWarning?: (warning: string) => void;
   }) {
     if (callbacks.onData) this.onDataCallback = callbacks.onData;
     if (callbacks.onLog) this.onLogCallback = callbacks.onLog;
     if (callbacks.onError) this.onErrorCallback = callbacks.onError;
+    if (callbacks.onWarning) this.onWarningCallback = callbacks.onWarning;
   }
 
   public async connect(baudRate: number = 9600): Promise<boolean> {
@@ -85,6 +88,15 @@ export class SerialManager {
       if (!line) continue;
 
       this.log('IN', line);
+
+      // Check for warning messages
+      if (line.startsWith('WARNING:')) {
+        const warningType = line.substring(8);
+        if (this.onWarningCallback) {
+          this.onWarningCallback(warningType);
+        }
+        continue;
+      }
 
       if (line.startsWith('{') && line.endsWith('}')) {
         try {
