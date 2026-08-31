@@ -77,7 +77,7 @@ void runIrrigation() {
   float water25Percent = waterTankEmptyThreshold * 0.75;
   if (waterTankDist >= water25Percent) {
     Serial.println("WARNING:WATER_LOW");
-    Serial.println("الماء في الخزان أقل من 25% - تم إلغاء الري");
+    Serial.println("Water level below 25% - Irrigation cancelled");
     pumpOff();
     return;
   }

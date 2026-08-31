@@ -153,9 +153,9 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       },
       onWarning: (warning) => {
         if (warning === 'WATER_LOW') {
-          setLowWaterWarning({ isOpen: true, message: 'الماء في الخزان أقل من 25% - تم إلغاء الري' });
+          setLowWaterWarning({ isOpen: true, message: 'Water level in the tank is below 25%. Irrigation has been cancelled.' });
         } else if (warning === 'SPRAY_LOW') {
-          setLowWaterWarning({ isOpen: true, message: ' الرش في الخزان أقل من 25% - تم إلغاء الرش' });
+          setLowWaterWarning({ isOpen: true, message: 'Spray tank level is below 25%. Spray has been cancelled.' });
         }
       },
     });

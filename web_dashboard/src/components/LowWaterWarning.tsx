@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 
 interface LowWaterWarningProps {
@@ -10,12 +10,22 @@ interface LowWaterWarningProps {
 }
 
 export const LowWaterWarning: React.FC<LowWaterWarningProps> = ({ isOpen, message, onClose }) => {
+  const [countdown, setCountdown] = useState(5);
+
   useEffect(() => {
     if (isOpen) {
-      const timer = setTimeout(() => {
-        onClose();
-      }, 4000);
-      return () => clearTimeout(timer);
+      setCountdown(5);
+      const interval = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            onClose();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(interval);
     }
   }, [isOpen, onClose]);
 
@@ -29,7 +39,6 @@ export const LowWaterWarning: React.FC<LowWaterWarningProps> = ({ isOpen, messag
           background: '#ffffff',
           border: '1px solid #fde68a',
           boxShadow: '0 20px 48px rgba(245,158,11,0.15)',
-          animation: 'fadeSlideIn 0.2s ease-out',
         }}>
 
         <div className="flex items-center gap-3">
@@ -55,7 +64,7 @@ export const LowWaterWarning: React.FC<LowWaterWarningProps> = ({ isOpen, messag
 
         <div className="flex justify-center pt-2">
           <div className="px-4 py-2 rounded-xl text-sm font-semibold text-amber-600 bg-amber-50 border border-amber-200">
-            Auto-closing in 4 seconds...
+            Auto-closing in {countdown}s...
           </div>
         </div>
 

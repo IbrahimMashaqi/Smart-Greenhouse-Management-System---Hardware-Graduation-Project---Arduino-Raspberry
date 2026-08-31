@@ -166,7 +166,7 @@ void runSprayCycle() {
   float spray25Percent = sprayTankEmptyThreshold * 0.75;
   if (sprayTankDist >= spray25Percent) {
     Serial.println("WARNING:SPRAY_LOW");
-    Serial.println(" الرش في الخزان أقل من 25% - تم إلغاء الرش");
+    Serial.println("Spray tank level below 25% - Spray cancelled");
     allOff();
     sprayRunning = false;
     return;

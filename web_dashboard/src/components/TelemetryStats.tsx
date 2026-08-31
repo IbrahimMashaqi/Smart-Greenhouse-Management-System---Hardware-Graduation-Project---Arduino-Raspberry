@@ -18,6 +18,22 @@ export const TelemetryStats: React.FC = () => {
 
   // Temperature logic
   const isHighTemp = telemetry.temperature > telemetry.tempThreshold;
+  const tempDiff = telemetry.temperature - telemetry.tempThreshold;
+  const getTempStatus = () => {
+    if (tempDiff > 5) return { label: 'CRITICAL', cls: 'bg-rose-50 text-rose-600 border-rose-200' };
+    if (tempDiff > 0) return { label: 'HIGH', cls: 'bg-amber-50 text-amber-600 border-amber-200' };
+    if (tempDiff < -5) return { label: 'COLD', cls: 'bg-sky-50 text-sky-600 border-sky-200' };
+    return { label: 'NORMAL', cls: 'bg-emerald-50 text-emerald-600 border-emerald-200' };
+  };
+  const tempStatus = getTempStatus();
+
+  // Humidity logic
+  const getHumidityStatus = () => {
+    if (telemetry.humidity < 30) return { label: 'LOW', cls: 'bg-amber-50 text-amber-600 border-amber-200' };
+    if (telemetry.humidity > 80) return { label: 'HIGH', cls: 'bg-sky-50 text-sky-600 border-sky-200' };
+    return { label: 'OPTIMAL', cls: 'bg-emerald-50 text-emerald-600 border-emerald-200' };
+  };
+  const humidityStatus = getHumidityStatus();
 
   // Lux classification logic
   const getLuxLabel = () => {
@@ -33,6 +49,39 @@ export const TelemetryStats: React.FC = () => {
   // Soil logic
   const avgSoil = Math.round((telemetry.soil1 + telemetry.soil2) / 2);
   const isSoilDry = telemetry.soilStatus === 'DRY';
+  const soilPercent = Math.round(((1023 - avgSoil) / 1023) * 100);
+  const getSoilStatus = () => {
+    if (soilPercent < 20) return { label: 'DRY', cls: 'bg-amber-50 text-amber-600 border-amber-200' };
+    if (soilPercent > 60) return { label: 'WET', cls: 'bg-sky-50 text-sky-600 border-sky-200' };
+    return { label: 'OPTIMAL', cls: 'bg-emerald-50 text-emerald-600 border-emerald-200' };
+  };
+  const soilStatusInfo = getSoilStatus();
+
+  // Water Tank logic
+  const waterTankPercent = telemetry.waterTankOK
+    ? Math.round(Math.max(0, Math.min(100, ((telemetry.waterTankEmptyThreshold - telemetry.waterTankDist) / telemetry.waterTankEmptyThreshold) * 100)))
+    : 0;
+  const getWaterTankStatus = () => {
+    if (waterTankPercent >= 75) return { label: 'FULL', cls: 'bg-emerald-50 text-emerald-600 border-emerald-200' };
+    if (waterTankPercent >= 50) return { label: 'GOOD', cls: 'bg-sky-50 text-sky-600 border-sky-200' };
+    if (waterTankPercent >= 25) return { label: 'LOW', cls: 'bg-amber-50 text-amber-600 border-amber-200' };
+    if (waterTankPercent > 0) return { label: 'CRITICAL', cls: 'bg-rose-50 text-rose-600 border-rose-200' };
+    return { label: 'EMPTY', cls: 'bg-rose-50 text-rose-600 border-rose-200' };
+  };
+  const waterTankStatus = getWaterTankStatus();
+
+  // Spray Tank logic
+  const sprayTankPercent = telemetry.sprayTankOK
+    ? Math.round(Math.max(0, Math.min(100, ((telemetry.sprayTankEmptyThreshold - telemetry.sprayTankDist) / telemetry.sprayTankEmptyThreshold) * 100)))
+    : 0;
+  const getSprayTankStatus = () => {
+    if (sprayTankPercent >= 75) return { label: 'FULL', cls: 'bg-emerald-50 text-emerald-600 border-emerald-200' };
+    if (sprayTankPercent >= 50) return { label: 'GOOD', cls: 'bg-sky-50 text-sky-600 border-sky-200' };
+    if (sprayTankPercent >= 25) return { label: 'LOW', cls: 'bg-amber-50 text-amber-600 border-amber-200' };
+    if (sprayTankPercent > 0) return { label: 'CRITICAL', cls: 'bg-rose-50 text-rose-600 border-rose-200' };
+    return { label: 'EMPTY', cls: 'bg-rose-50 text-rose-600 border-rose-200' };
+  };
+  const sprayTankStatus = getSprayTankStatus();
 
   const card = 'glass-panel glass-panel-hover rounded-2xl p-4 flex flex-col justify-between relative overflow-hidden';
 
@@ -57,10 +106,8 @@ export const TelemetryStats: React.FC = () => {
               {telemetry.temperature.toFixed(1)}
               <span className="text-sm font-medium ml-1" style={{ color: 'var(--text-muted)' }}>°C</span>
             </span>
-            <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
-              isHighTemp ? 'bg-rose-50 text-rose-600 border-rose-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-            }`}>
-              {isHighTemp ? 'HIGH' : 'NORMAL'}
+            <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${tempStatus.cls}`}>
+              {tempStatus.label}
             </span>
           </div>
           <div className="w-full rounded-full h-1.5 mt-3 overflow-hidden" style={{ background: '#e0f2fe' }}>
@@ -90,8 +137,8 @@ export const TelemetryStats: React.FC = () => {
               {telemetry.humidity.toFixed(1)}
               <span className="text-sm font-medium ml-1" style={{ color: 'var(--text-muted)' }}>%</span>
             </span>
-            <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold border bg-sky-50 text-sky-600 border-sky-200">
-              OPTIMAL
+            <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${humidityStatus.cls}`}>
+              {humidityStatus.label}
             </span>
           </div>
           <div className="w-full rounded-full h-1.5 mt-3 overflow-hidden" style={{ background: '#e0f2fe' }}>
@@ -147,10 +194,8 @@ export const TelemetryStats: React.FC = () => {
               <span className="text-xs ml-1" style={{ color: 'var(--text-muted)' }}>ADC avg</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${
-                isSoilDry ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-emerald-50 text-emerald-600 border-emerald-200'
-              }`}>
-                {telemetry.soilStatus}
+              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold border ${soilStatusInfo.cls}`}>
+                {soilStatusInfo.label}
               </span>
               <button
                 onClick={startWateringCycle}
@@ -183,15 +228,11 @@ export const TelemetryStats: React.FC = () => {
         <div className="mt-4">
           <div className="flex items-baseline justify-between">
             <span className="text-3xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-              {telemetry.waterTankOK
-                ? Math.round(Math.max(0, Math.min(100, ((telemetry.waterTankEmptyThreshold - telemetry.waterTankDist) / telemetry.waterTankEmptyThreshold) * 100)))
-                : 0}
+              {waterTankPercent}
               <span className="text-sm font-medium ml-1" style={{ color: 'var(--text-muted)' }}>%</span>
             </span>
-            <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
-              telemetry.waterTankOK ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-rose-50 text-rose-600 border-rose-200'
-            }`}>
-              {telemetry.waterTankOK ? 'WATER OK' : 'EMPTY'}
+            <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${waterTankStatus.cls}`}>
+              {waterTankStatus.label}
             </span>
           </div>
           <div className="flex items-center justify-between mt-1">
@@ -202,7 +243,7 @@ export const TelemetryStats: React.FC = () => {
           <div className="w-full rounded-full h-1.5 mt-2 overflow-hidden" style={{ background: '#e0f2fe' }}>
             <div
               className={`h-full rounded-full transition-all duration-500 ${telemetry.waterTankOK ? 'bg-sky-500' : 'bg-rose-500'}`}
-              style={{ width: `${telemetry.waterTankOK ? Math.max(0, Math.min(100, ((telemetry.waterTankEmptyThreshold - telemetry.waterTankDist) / telemetry.waterTankEmptyThreshold) * 100)) : 0}%` }}
+              style={{ width: `${waterTankPercent}%` }}
             />
           </div>
         </div>
@@ -223,15 +264,11 @@ export const TelemetryStats: React.FC = () => {
         <div className="mt-4">
           <div className="flex items-baseline justify-between">
             <span className="text-3xl font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
-              {telemetry.sprayTankOK
-                ? Math.round(Math.max(0, Math.min(100, ((telemetry.sprayTankEmptyThreshold - telemetry.sprayTankDist) / telemetry.sprayTankEmptyThreshold) * 100)))
-                : 0}
+              {sprayTankPercent}
               <span className="text-sm font-medium ml-1" style={{ color: 'var(--text-muted)' }}>%</span>
             </span>
-            <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${
-              telemetry.sprayTankOK ? 'bg-violet-50 text-violet-600 border-violet-200' : 'bg-rose-50 text-rose-600 border-rose-200'
-            }`}>
-              {telemetry.sprayTankOK ? 'TANK OK' : 'EMPTY'}
+            <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${sprayTankStatus.cls}`}>
+              {sprayTankStatus.label}
             </span>
           </div>
           <div className="flex items-center justify-between mt-1">
@@ -242,7 +279,7 @@ export const TelemetryStats: React.FC = () => {
           <div className="w-full rounded-full h-1.5 mt-2 overflow-hidden" style={{ background: '#f3e8ff' }}>
             <div
               className={`h-full rounded-full transition-all duration-500 ${telemetry.sprayTankOK ? 'bg-violet-500' : 'bg-rose-500'}`}
-              style={{ width: `${telemetry.sprayTankOK ? Math.max(0, Math.min(100, ((telemetry.sprayTankEmptyThreshold - telemetry.sprayTankDist) / telemetry.sprayTankEmptyThreshold) * 100)) : 0}%` }}
+              style={{ width: `${sprayTankPercent}%` }}
             />
           </div>
         </div>
