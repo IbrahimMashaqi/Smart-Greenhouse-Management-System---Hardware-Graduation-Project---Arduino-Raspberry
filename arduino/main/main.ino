@@ -32,7 +32,7 @@ String soilStatus              = "WET";
 float  waterTankDist           = 0;
 bool   waterTankOK             = true;
 bool   pumpRunning             = false;
-int    dryThreshold            = 600;
+int    dryThreshold            = 750;
 float  waterTankEmptyThreshold = 11.0;
 
 // Spray
