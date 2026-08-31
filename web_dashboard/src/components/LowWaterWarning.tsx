@@ -1,33 +1,16 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { AlertTriangle } from 'lucide-react';
 
 interface LowWaterWarningProps {
   isOpen: boolean;
   message: string;
+  type: 'water' | 'spray';
   onClose: () => void;
 }
 
-export const LowWaterWarning: React.FC<LowWaterWarningProps> = ({ isOpen, message, onClose }) => {
-  const [countdown, setCountdown] = useState(5);
-
-  useEffect(() => {
-    if (isOpen) {
-      setCountdown(5);
-      const interval = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            onClose();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => clearInterval(interval);
-    }
-  }, [isOpen, onClose]);
+export const LowWaterWarning: React.FC<LowWaterWarningProps> = ({ isOpen, message, type, onClose }) => {
 
   if (!isOpen) return null;
 
@@ -46,7 +29,9 @@ export const LowWaterWarning: React.FC<LowWaterWarningProps> = ({ isOpen, messag
             <AlertTriangle className="w-6 h-6" />
           </div>
           <div>
-            <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>Warning: Low Water Level</h3>
+            <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+              {type === 'spray' ? 'Warning: Low Spray Level' : 'Warning: Low Water Level'}
+            </h3>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>Process Cancelled</p>
           </div>
         </div>
@@ -55,7 +40,7 @@ export const LowWaterWarning: React.FC<LowWaterWarningProps> = ({ isOpen, messag
           style={{ background: '#fffbeb', borderColor: '#fde68a' }}>
           <div className="flex items-center gap-2 font-bold text-amber-600">
             <AlertTriangle className="w-4 h-4 shrink-0" />
-            <span>Water Level Below 25%</span>
+            <span>{type === 'spray' ? 'Spray Level Below 25%' : 'Water Level Below 25%'}</span>
           </div>
           <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
             {message}
@@ -63,9 +48,12 @@ export const LowWaterWarning: React.FC<LowWaterWarningProps> = ({ isOpen, messag
         </div>
 
         <div className="flex justify-center pt-2">
-          <div className="px-4 py-2 rounded-xl text-sm font-semibold text-amber-600 bg-amber-50 border border-amber-200">
-            Auto-closing in {countdown}s...
-          </div>
+          <button
+            onClick={onClose}
+            className="px-6 py-2 rounded-xl text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 transition-colors cursor-pointer"
+          >
+            OK
+          </button>
         </div>
 
       </div>

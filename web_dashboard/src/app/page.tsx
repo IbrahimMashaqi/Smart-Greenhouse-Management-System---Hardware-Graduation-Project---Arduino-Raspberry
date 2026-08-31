@@ -129,6 +129,7 @@ export default function Home() {
       <LowWaterWarning 
         isOpen={lowWaterWarning.isOpen} 
         message={lowWaterWarning.message} 
+        type={lowWaterWarning.type}
         onClose={closeLowWaterWarning} 
       />
     </div>

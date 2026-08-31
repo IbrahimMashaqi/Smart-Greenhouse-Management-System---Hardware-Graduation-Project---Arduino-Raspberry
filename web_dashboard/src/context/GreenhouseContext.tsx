@@ -64,7 +64,7 @@ interface GreenhouseContextType {
   startWateringCycle: () => Promise<void>;
 
   // Low water warning
-  lowWaterWarning: { isOpen: boolean; message: string };
+  lowWaterWarning: { isOpen: boolean; message: string; type: 'water' | 'spray' };
   closeLowWaterWarning: () => void;
 }
 
@@ -78,9 +78,12 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [logs, setLogs] = useState<SerialLog[]>([]);
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
   const [medicineModalOpen, setMedicineModalOpen] = useState<boolean>(false);
-  const [lowWaterWarning, setLowWaterWarning] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
+  const [lowWaterWarning, setLowWaterWarning] = useState<{ isOpen: boolean; message: string; type: 'water' | 'spray' }>({ isOpen: false, message: '', type: 'water' });
+  const prevWaterLowRef = useRef(false);
+  const prevSprayLowRef = useRef(false);
+  const telemetryRef = useRef<TelemetryData>(DEFAULT_TELEMETRY);
 
-  // Default initial watering schedules
+  // Default initial schedules
   const [schedules, setSchedules] = useState<WateringSchedule[]>([
     {
       id: '1',
@@ -89,6 +92,7 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       enabled: true,
       days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
       durationSeconds: 30,
+      type: 'watering',
     },
     {
       id: '2',
@@ -97,6 +101,25 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       enabled: true,
       days: ['Mon', 'Wed', 'Fri'],
       durationSeconds: 45,
+      type: 'watering',
+    },
+    {
+      id: '3',
+      name: 'Morning Spray',
+      time: '07:00',
+      enabled: true,
+      days: ['Mon', 'Thu'],
+      durationSeconds: 20,
+      type: 'spraying',
+    },
+    {
+      id: '4',
+      name: 'Afternoon Spray',
+      time: '14:00',
+      enabled: true,
+      days: ['Tue', 'Fri'],
+      durationSeconds: 25,
+      type: 'spraying',
     },
   ]);
 
@@ -142,6 +165,11 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     [recordHistoryPoint]
   );
 
+  // Keep telemetryRef in sync for use inside callbacks/refs
+  useEffect(() => {
+    telemetryRef.current = telemetry;
+  }, [telemetry]);
+
   // Setup Serial callbacks
   useEffect(() => {
     serialManager.setCallbacks({
@@ -152,10 +180,22 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setStatus('ERROR');
       },
       onWarning: (warning) => {
-        if (warning === 'WATER_LOW') {
-          setLowWaterWarning({ isOpen: true, message: 'Water level in the tank is below 25%. Irrigation has been cancelled.' });
-        } else if (warning === 'SPRAY_LOW') {
-          setLowWaterWarning({ isOpen: true, message: 'Spray tank level is below 25%. Spray has been cancelled.' });
+        if (warning === 'WATER_LOW' && !prevWaterLowRef.current) {
+          const t = telemetryRef.current;
+          if (!t.waterTankOK) {
+            prevWaterLowRef.current = true;
+            setLowWaterWarning({ isOpen: true, message: 'Water level in the tank is too low. Irrigation has been cancelled by the controller.', type: 'water' });
+          }
+        } else if (warning === 'SPRAY_LOW' && !prevSprayLowRef.current) {
+          const t = telemetryRef.current;
+          if (!t.sprayTankOK) {
+            prevSprayLowRef.current = true;
+            setLowWaterWarning({ isOpen: true, message: 'Spray tank level is too low. Spray has been cancelled by the controller.', type: 'spray' });
+          }
+        } else if (warning === 'WATER_OK') {
+          prevWaterLowRef.current = false;
+        } else if (warning === 'SPRAY_OK') {
+          prevSprayLowRef.current = false;
         }
       },
     });
@@ -265,10 +305,20 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   // Quick Action Triggers
   const startWateringCycle = async () => {
+    const t = telemetryRef.current;
+    if (!t.waterTankOK) {
+      setLowWaterWarning({ isOpen: true, message: 'Water level in the tank is too low. Fill the tank to continue irrigation.', type: 'water' });
+      return;
+    }
     await sendCommand('WATER_START');
   };
 
   const startSprayCycle = async () => {
+    const t = telemetryRef.current;
+    if (!t.sprayTankOK) {
+      setLowWaterWarning({ isOpen: true, message: 'Spray tank level is too low. Fill the tank to continue spraying.', type: 'spray' });
+      return;
+    }
     await sendCommand('SPRAY_START');
   };
 
@@ -278,7 +328,9 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
 
   const closeLowWaterWarning = () => {
-    setLowWaterWarning({ isOpen: false, message: '' });
+    prevWaterLowRef.current = false;
+    prevSprayLowRef.current = false;
+    setLowWaterWarning({ isOpen: false, message: '', type: 'water' });
   };
 
   // Toggle Simulation Mode
@@ -336,12 +388,6 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         const newWaterTankOK = newWaterTankDist < prev.waterTankEmptyThreshold;
         const newSprayTankOK = newSprayTankDist < prev.sprayTankEmptyThreshold;
 
-        // Check for low water warnings (25% threshold)
-        const water25Percent = prev.waterTankEmptyThreshold * 0.75;
-        const spray25Percent = prev.sprayTankEmptyThreshold * 0.75;
-        const waterLow = newWaterTankDist >= water25Percent;
-        const sprayLow = newSprayTankDist >= spray25Percent;
-
         const updatedData: TelemetryData = {
           ...prev,
           temperature: newTemp,
@@ -358,6 +404,26 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           sprayTankDist: newSprayTankDist,
           sprayTankOK: newSprayTankOK,
         };
+
+        // Edge-detect low tank warnings (25% threshold)
+        const water25Percent = prev.waterTankEmptyThreshold * 0.75;
+        const spray25Percent = prev.sprayTankEmptyThreshold * 0.75;
+        const waterLow = newWaterTankDist >= water25Percent;
+        const sprayLow = newSprayTankDist >= spray25Percent;
+
+        if (waterLow && !prevWaterLowRef.current) {
+          prevWaterLowRef.current = true;
+          setLowWaterWarning({ isOpen: true, message: 'Water level in the tank is below 25%. Irrigation has been cancelled.', type: 'water' });
+        } else if (!waterLow && prevWaterLowRef.current) {
+          prevWaterLowRef.current = false;
+        }
+
+        if (sprayLow && !prevSprayLowRef.current) {
+          prevSprayLowRef.current = true;
+          setLowWaterWarning({ isOpen: true, message: 'Spray tank level is below 25%. Spray has been cancelled.', type: 'spray' });
+        } else if (!sprayLow && prevSprayLowRef.current) {
+          prevSprayLowRef.current = false;
+        }
 
         const mockJson = JSON.stringify(updatedData);
         addLog('IN', mockJson);
@@ -409,16 +475,19 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
       schedules.forEach((sch) => {
         if (sch.enabled && sch.time === currentHoursMin && sch.days.includes(currentDay)) {
-          // Prevent multiple triggers in the same minute
           if (lastTriggeredRef.current[sch.id] !== todayKey) {
             lastTriggeredRef.current[sch.id] = todayKey;
             addLog('SYS', `Automated Schedule Triggered: "${sch.name}" (${sch.time})`);
-            startWateringCycle();
+            if (sch.type === 'spraying') {
+              startSprayCycle();
+            } else {
+              startWateringCycle();
+            }
             updateSchedule(sch.id, { lastRun: new Date().toLocaleTimeString() });
           }
         }
       });
-    }, 10000); // Check every 10 seconds
+    }, 10000);
 
     return () => clearInterval(checkInterval);
   }, [schedules, addLog]);

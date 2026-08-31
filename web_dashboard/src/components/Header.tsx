@@ -7,11 +7,11 @@ import {
   Plug,
   PlugZap,
   Activity,
-  Play,
-  Square,
   Clock,
   Settings,
-  AlertCircle
+  AlertCircle,
+  Square,
+  Play
 } from 'lucide-react';
 
 export const Header: React.FC = () => {
@@ -42,13 +42,6 @@ export const Header: React.FC = () => {
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             CONNECTED
-          </span>
-        );
-      case 'SIMULATING':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200">
-            <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse"></span>
-            SIMULATING
           </span>
         );
       case 'CONNECTING':

@@ -49,7 +49,9 @@ export const ActuatorStatus: React.FC = () => {
           <div className="mt-3">
             <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Cooling Fans</h3>
             <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              Auto Trigger: Temp &gt; {telemetry.tempThreshold}°C
+              {telemetry.fan
+                ? `Cooling · ${telemetry.temperature.toFixed(1)}°C > ${telemetry.tempThreshold}°C`
+                : `Standby · Auto: Temp > ${telemetry.tempThreshold}°C`}
             </p>
           </div>
         </div>
@@ -73,7 +75,9 @@ export const ActuatorStatus: React.FC = () => {
           <div className="mt-3">
             <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Night LED Light</h3>
             <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              Auto ON: Lux &lt; {telemetry.luxNightThreshold}
+              {telemetry.light
+                ? `Illuminating · ${telemetry.lux.toFixed(0)} Lux < ${telemetry.luxNightThreshold}`
+                : `Standby · Auto ON: Lux < ${telemetry.luxNightThreshold}`}
             </p>
           </div>
         </div>
@@ -101,7 +105,9 @@ export const ActuatorStatus: React.FC = () => {
           <div className="mt-3">
             <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Shade Umbrella</h3>
             <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
-              Sun Protection (&gt;={telemetry.luxHighThreshold} Lux)
+              {telemetry.umbrella === 'CLOSED'
+                ? `Shading · ${telemetry.lux.toFixed(0)} Lux ≥ ${telemetry.luxHighThreshold}`
+                : `Open · Auto close: Lux ≥ ${telemetry.luxHighThreshold}`}
             </p>
           </div>
         </div>
@@ -114,7 +120,7 @@ export const ActuatorStatus: React.FC = () => {
         }`}>
           <div className="flex items-center justify-between">
             <div className={`p-2 rounded-lg ${telemetry.pump ? 'bg-sky-100 text-sky-600' : 'bg-slate-100 text-slate-400'}`}>
-              <ShowerHead className="w-5 h-5" />
+              <ShowerHead className={`w-5 h-5 ${telemetry.pump ? 'animate-pulse' : ''}`} />
             </div>
             <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
               telemetry.pump ? 'bg-sky-100 text-sky-700' : 'bg-slate-100 text-slate-500'
@@ -125,7 +131,11 @@ export const ActuatorStatus: React.FC = () => {
           <div className="mt-3 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Irrigation Pump</h3>
-              <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Watering Pump</p>
+              <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                {telemetry.waterTankOK
+                  ? `Tank OK · Auto: Soil ≥ ${telemetry.dryThreshold}`
+                  : 'Tank EMPTY — fill to irrigate'}
+              </p>
             </div>
             <button
               onClick={startWateringCycle}
@@ -145,7 +155,7 @@ export const ActuatorStatus: React.FC = () => {
         }`}>
           <div className="flex items-center justify-between">
             <div className={`p-2 rounded-lg ${telemetry.sprayRunning ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-              <SprayCan className="w-5 h-5" />
+              <SprayCan className={`w-5 h-5 ${telemetry.sprayRunning ? 'animate-pulse' : ''}`} />
             </div>
             <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
               telemetry.sprayRunning ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
@@ -156,7 +166,11 @@ export const ActuatorStatus: React.FC = () => {
           <div className="mt-3 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Spray &amp; Wash</h3>
-              <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>Medicine Spray</p>
+              <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                {telemetry.sprayTankOK
+                  ? 'Tank OK — medicine ready'
+                  : 'Tank EMPTY — fill to spray'}
+              </p>
             </div>
             <button
               onClick={startSprayCycle}

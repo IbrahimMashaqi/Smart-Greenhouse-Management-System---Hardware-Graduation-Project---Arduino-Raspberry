@@ -57,6 +57,44 @@ float readDistanceCMSpray(int trigPin, int echoPin) {
   return duration * 0.0343 / 2.0;
 }
 
+// =============================================
+// قراءة موثوقة: بتاخد عدة عينات، بترفض قراءات الفشل (999)،
+// وبترجع الوسيط (median) من القراءات الصحيحة.
+// لو كل المحاولات فشلت، عندها فقط بترجع 999 (فشل حقيقي).
+// هاي الدالة هي يلي لازم تُستخدم بأي مكان بيتخذ قرار "فاضي/مليان"
+// بدل القراءة الوحيدة، عشان تشويش لحظي (وقت تفعيل الموتور/الريلاي)
+// ما يلغي عملية صحيحة بالغلط.
+// =============================================
+float readDistanceCMSprayFiltered(int trigPin, int echoPin, int samples = 5) {
+  float valid[10];
+  int validCount = 0;
+
+  for (int i = 0; i < samples; i++) {
+    float d = readDistanceCMSpray(trigPin, echoPin);
+    if (d < 999) {
+      valid[validCount++] = d;
+    }
+    delay(30); // وقت استقرار بين نبضة وتانية لتجنب تداخل الصدى
+  }
+
+  if (validCount == 0) {
+    return 999; // فشل حقيقي بعد كل المحاولات
+  }
+
+  // فرز بسيط لإيجاد الوسيط
+  for (int i = 0; i < validCount - 1; i++) {
+    for (int j = i + 1; j < validCount - i - 1; j++) {
+      if (valid[j] > valid[j + 1]) {
+        float tmp = valid[j];
+        valid[j] = valid[j + 1];
+        valid[j + 1] = tmp;
+      }
+    }
+  }
+
+  return valid[validCount / 2];
+}
+
 void sprayOn() {
   digitalWrite(SPRAY_RELAY_PIN, RELAY_ON);
   Serial.println("SPRAY ON");
@@ -83,7 +121,7 @@ void allOff() {
 }
 
 bool tank2HasSprayLiquid() {
-  float d = readDistanceCMSpray(TANK2_TRIG_PIN, TANK2_ECHO_PIN);
+  float d = readDistanceCMSprayFiltered(TANK2_TRIG_PIN, TANK2_ECHO_PIN);
 
   Serial.print("Tank 2 Distance = ");
   Serial.print(d);
@@ -99,7 +137,7 @@ bool tank2HasSprayLiquid() {
 }
 
 bool tank1HasWaterForWash() {
-  float d = readDistanceCMSpray(TANK1_TRIG_PIN, TANK1_ECHO_PIN);
+  float d = readDistanceCMSprayFiltered(TANK1_TRIG_PIN, TANK1_ECHO_PIN);
 
   Serial.print("Tank 1 Distance = ");
   Serial.print(d);
@@ -162,7 +200,7 @@ void runSprayCycle() {
   }
 
   // Check if spray tank is at least 25% full
-  sprayTankDist = readDistanceCMSpray(TANK2_TRIG_PIN, TANK2_ECHO_PIN);
+  sprayTankDist = readDistanceCMSprayFiltered(TANK2_TRIG_PIN, TANK2_ECHO_PIN);
   float spray25Percent = sprayTankEmptyThreshold * 0.75;
   if (sprayTankDist >= spray25Percent) {
     Serial.println("WARNING:SPRAY_LOW");
@@ -240,7 +278,7 @@ void sprayLoop() {
       lastSprayTankCheck = now;
 
       // Read spray tank (Tank 2) distance
-      sprayTankDist = readDistanceCMSpray(TANK2_TRIG_PIN, TANK2_ECHO_PIN);
+      sprayTankDist = readDistanceCMSprayFiltered(TANK2_TRIG_PIN, TANK2_ECHO_PIN);
       if (sprayTankDist >= 999) {
         // No echo – treat as uncertain, keep previous state
       } else {

@@ -61,8 +61,42 @@ float readDistanceCM() {
   return duration * 0.0343 / 2.0;
 }
 
+// =============================================
+// قراءة موثوقة: عدة عينات + رفض قراءات الفشل (999) + وسيط (median).
+// تُستخدم بأي قرار "فاضي/مليان" بدل القراءة الوحيدة، عشان تشويش
+// لحظي (وقت تشغيل الموتور/المضخة) ما يلغي عملية ري صحيحة بالغلط.
+// =============================================
+float readDistanceCMFiltered(int samples = 5) {
+  float valid[10];
+  int validCount = 0;
+
+  for (int i = 0; i < samples; i++) {
+    float d = readDistanceCM();
+    if (d < 999) {
+      valid[validCount++] = d;
+    }
+    delay(30); // وقت استقرار بين نبضة وتانية
+  }
+
+  if (validCount == 0) {
+    return 999; // فشل حقيقي بعد كل المحاولات
+  }
+
+  for (int i = 0; i < validCount - 1; i++) {
+    for (int j = i + 1; j < validCount - i - 1; j++) {
+      if (valid[j] > valid[j + 1]) {
+        float tmp = valid[j];
+        valid[j] = valid[j + 1];
+        valid[j + 1] = tmp;
+      }
+    }
+  }
+
+  return valid[validCount / 2];
+}
+
 bool tankHasWater() {
-  waterTankDist = readDistanceCM();
+  waterTankDist = readDistanceCMFiltered();
   waterTankOK   = (waterTankDist < waterTankEmptyThreshold);
   return waterTankOK;
 }
@@ -73,7 +107,7 @@ void runIrrigation() {
   if (!tankHasWater()) { pumpOff(); return; }
 
   // Check if water is at least 25% full
-  waterTankDist = readDistanceCM();
+  waterTankDist = readDistanceCMFiltered();
   float water25Percent = waterTankEmptyThreshold * 0.75;
   if (waterTankDist >= water25Percent) {
     Serial.println("WARNING:WATER_LOW");
@@ -118,7 +152,7 @@ void waterTankLoop() {
   if (now - lastWaterTankCheck >= WATER_TANK_CHECK_INTERVAL) {
     lastWaterTankCheck = now;
 
-    float d = readDistanceCM();
+    float d = readDistanceCMFiltered();
     if (d >= 999) {
       // No echo - keep previous state
     } else {

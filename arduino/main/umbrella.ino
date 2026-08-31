@@ -19,7 +19,7 @@ void moveToLimit(int stepPin, int limitPin, int stepDelayUs) {
   while (digitalRead(limitPin) == LOW) {
     digitalWrite(stepPin, HIGH); delayMicroseconds(stepDelayUs);
     digitalWrite(stepPin, LOW);  delayMicroseconds(stepDelayUs);
-    if (millis() - start > 30000) {
+    if (millis() - start > 50000) {
       Serial.println("UMBRELLA TIMEOUT");
       break;
     }

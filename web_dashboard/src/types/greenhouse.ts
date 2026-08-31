@@ -39,6 +39,7 @@ export interface WateringSchedule {
   enabled: boolean;
   days: string[]; // ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   durationSeconds: number;
+  type: 'watering' | 'spraying';
   lastRun?: string;
 }
 

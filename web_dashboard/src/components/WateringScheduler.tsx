@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useGreenhouse } from '@/context/GreenhouseContext';
+import { WateringSchedule } from '@/types/greenhouse';
 import {
   Calendar,
   Clock,
@@ -10,27 +11,34 @@ import {
   Play,
   ShowerHead,
   Timer,
-  SprayCan
+  SprayCan,
+  Pencil,
+  X,
 } from 'lucide-react';
 
 const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+type TabType = 'watering' | 'spraying';
 
 export const WateringScheduler: React.FC = () => {
   const {
     schedules,
     addSchedule,
-    toggleSchedule,
+    updateSchedule,
     deleteSchedule,
+    toggleSchedule,
     startWateringCycle,
     startSprayCycle,
     telemetry,
   } = useGreenhouse();
 
-  const [isAdding,        setIsAdding]        = useState(false);
-  const [name,            setName]            = useState('');
-  const [time,            setTime]            = useState('08:00');
+  const [activeTab, setActiveTab] = useState<TabType>('watering');
+  const [isAdding, setIsAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [time, setTime] = useState('08:00');
   const [durationSeconds, setDurationSeconds] = useState(30);
-  const [selectedDays,    setSelectedDays]    = useState<string[]>(['Mon', 'Wed', 'Fri']);
+  const [selectedDays, setSelectedDays] = useState<string[]>(['Mon', 'Wed', 'Fri']);
 
   const handleDayToggle = (day: string) => {
     setSelectedDays((prev) =>
@@ -38,30 +46,71 @@ export const WateringScheduler: React.FC = () => {
     );
   };
 
-  const handleCreate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim() || selectedDays.length === 0) return;
-    addSchedule({ name: name.trim(), time, enabled: true, days: selectedDays, durationSeconds });
+  const resetForm = () => {
     setName('');
     setTime('08:00');
     setDurationSeconds(30);
     setSelectedDays(['Mon', 'Wed', 'Fri']);
     setIsAdding(false);
+    setEditingId(null);
   };
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || selectedDays.length === 0) return;
+
+    if (editingId) {
+      updateSchedule(editingId, {
+        name: name.trim(),
+        time,
+        days: selectedDays,
+        durationSeconds,
+      });
+    } else {
+      addSchedule({
+        name: name.trim(),
+        time,
+        enabled: true,
+        days: selectedDays,
+        durationSeconds,
+        type: activeTab,
+      });
+    }
+    resetForm();
+  };
+
+  const handleEdit = (sch: WateringSchedule) => {
+    setEditingId(sch.id);
+    setName(sch.name);
+    setTime(sch.time);
+    setDurationSeconds(sch.durationSeconds);
+    setSelectedDays([...sch.days]);
+    setIsAdding(true);
+  };
+
+  const filteredSchedules = schedules.filter((s) => s.type === activeTab);
 
   const inputClass = 'w-full px-3 py-1.5 rounded-lg border text-xs outline-none transition-all'
     + ' focus:border-sky-400 focus:ring-2 focus:ring-sky-100';
 
+  const tabBtnClass = (tab: TabType) =>
+    `flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all border ${
+      activeTab === tab
+        ? 'bg-sky-500 text-white border-sky-500 shadow-md shadow-sky-200'
+        : 'bg-white text-slate-500 border-slate-200 hover:text-sky-600 hover:border-sky-200'
+    }`;
+
   return (
     <div className="glass-panel rounded-2xl p-6">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div>
           <h2 className="text-base font-bold flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
             <Calendar className="w-4 h-4 text-sky-500" />
-            AUTOMATED WATERING SCHEDULER
+            AUTOMATED SCHEDULER
           </h2>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            Configure automated time slots to trigger irrigation pump cycles via serial
+            Configure automated time slots for irrigation and spray cycles
           </p>
         </div>
 
@@ -72,7 +121,7 @@ export const WateringScheduler: React.FC = () => {
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-600 text-white font-semibold text-xs transition-all shadow-md shadow-sky-200 disabled:opacity-50"
           >
             <ShowerHead className="w-4 h-4" />
-            {telemetry.pump ? 'Watering Active...' : 'Manual Instant Water'}
+            {telemetry.pump ? 'Watering...' : 'Instant Water'}
           </button>
 
           <button
@@ -81,27 +130,35 @@ export const WateringScheduler: React.FC = () => {
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs transition-all shadow-md shadow-emerald-200 disabled:opacity-50"
           >
             <SprayCan className="w-4 h-4" />
-            {telemetry.sprayRunning ? 'Spraying Active...' : 'Manual Instant Spray'}
-          </button>
-
-          <button
-            onClick={() => setIsAdding(!isAdding)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border font-semibold text-xs transition-all"
-            style={{ background: '#f8fafc', borderColor: '#cbd5e1', color: 'var(--text-secondary)' }}
-          >
-            <Plus className="w-4 h-4 text-sky-500" />
-            {isAdding ? 'Cancel' : 'New Schedule'}
+            {telemetry.sprayRunning ? 'Spraying...' : 'Instant Spray'}
           </button>
         </div>
       </div>
 
-      {/* New Schedule Form */}
+      {/* Tabs */}
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={() => { setActiveTab('watering'); resetForm(); }} className={tabBtnClass('watering')}>
+          <ShowerHead className="w-4 h-4" />
+          Watering (Irrigation)
+        </button>
+        <button onClick={() => { setActiveTab('spraying'); resetForm(); }} className={tabBtnClass('spraying')}>
+          <SprayCan className="w-4 h-4" />
+          Spraying
+        </button>
+      </div>
+
+      {/* New/Edit Schedule Form */}
       {isAdding && (
         <form onSubmit={handleCreate} className="mb-6 p-4 rounded-xl border space-y-4"
           style={{ background: '#f0f7ff', borderColor: '#bae6fd' }}>
-          <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
-            Create New Watering Slot
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
+              {editingId ? 'Edit Schedule' : `New ${activeTab === 'watering' ? 'Watering' : 'Spraying'} Slot`}
+            </h3>
+            <button type="button" onClick={resetForm} className="p-1 rounded-lg hover:bg-slate-100 transition-all">
+              <X className="w-4 h-4 text-slate-400" />
+            </button>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
@@ -143,22 +200,41 @@ export const WateringScheduler: React.FC = () => {
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={resetForm}
+              className="px-4 py-1.5 rounded-lg border font-semibold text-xs transition-all hover:bg-slate-50"
+              style={{ borderColor: '#e2e8f0', color: 'var(--text-secondary)' }}>
+              Cancel
+            </button>
             <button type="submit"
               className="px-4 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-white font-semibold text-xs transition-all shadow-sm">
-              Save Schedule
+              {editingId ? 'Update Schedule' : 'Save Schedule'}
             </button>
           </div>
         </form>
       )}
 
+      {/* Add Button */}
+      {!isAdding && (
+        <div className="mb-4">
+          <button
+            onClick={() => setIsAdding(true)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border font-semibold text-xs transition-all"
+            style={{ background: '#f8fafc', borderColor: '#cbd5e1', color: 'var(--text-secondary)' }}
+          >
+            <Plus className="w-4 h-4 text-sky-500" />
+            New {activeTab === 'watering' ? 'Watering' : 'Spraying'} Schedule
+          </button>
+        </div>
+      )}
+
       {/* Schedule List */}
       <div className="space-y-3">
-        {schedules.length === 0 ? (
+        {filteredSchedules.length === 0 ? (
           <div className="text-center py-8 text-xs" style={{ color: 'var(--text-muted)' }}>
-            No watering schedules configured yet. Click &quot;New Schedule&quot; above to add one.
+            No {activeTab} schedules configured yet. Click &quot;New Schedule&quot; above to add one.
           </div>
         ) : (
-          schedules.map((sch) => (
+          filteredSchedules.map((sch) => (
             <div key={sch.id}
               className={`p-4 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all ${
                 sch.enabled
@@ -167,7 +243,7 @@ export const WateringScheduler: React.FC = () => {
               }`}>
               <div className="flex items-center gap-3">
                 <div className={`p-2.5 rounded-xl border ${sch.enabled ? 'bg-sky-50 text-sky-500 border-sky-200' : 'bg-slate-100 text-slate-400 border-slate-200'}`}>
-                  <Clock className="w-5 h-5" />
+                  {sch.type === 'spraying' ? <SprayCan className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -211,6 +287,12 @@ export const WateringScheduler: React.FC = () => {
                       : 'bg-slate-100 border-slate-200 text-slate-500'
                   }`}>
                   {sch.enabled ? 'ACTIVE' : 'PAUSED'}
+                </button>
+
+                <button onClick={() => handleEdit(sch)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-sky-500 hover:bg-sky-50 transition-all"
+                  title="Edit Schedule">
+                  <Pencil className="w-4 h-4" />
                 </button>
 
                 <button onClick={() => deleteSchedule(sch.id)}
