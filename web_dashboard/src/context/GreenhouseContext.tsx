@@ -27,9 +27,9 @@ const DEFAULT_TELEMETRY: TelemetryData = {
   sprayTankOK: true,
   sprayRunning: false,
   tempThreshold: 28.0,
-  luxNightThreshold: 20.0,
+  luxNightThreshold: 30.0,
   luxHighThreshold: 100.0,
-  dryThreshold: 400,
+  dryThreshold: 600,
   waterTankEmptyThreshold: 11.0,
   sprayTankEmptyThreshold: 10.5,
 };

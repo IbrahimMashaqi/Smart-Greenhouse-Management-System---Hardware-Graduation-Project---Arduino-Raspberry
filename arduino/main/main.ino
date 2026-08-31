@@ -22,7 +22,7 @@ float  tempThreshold   = 28.0;
 float  currentLux        = 0;
 bool   lightState        = false;
 String umbrellaState     = "OPEN";
-float  luxNightThreshold = 20.0;
+float  luxNightThreshold = 30.0;
 float  luxHighThreshold  = 100.0;
 
 // Irrigation
@@ -32,7 +32,7 @@ String soilStatus              = "WET";
 float  waterTankDist           = 0;
 bool   waterTankOK             = true;
 bool   pumpRunning             = false;
-int    dryThreshold            = 400;
+int    dryThreshold            = 600;
 float  waterTankEmptyThreshold = 11.0;
 
 // Spray
