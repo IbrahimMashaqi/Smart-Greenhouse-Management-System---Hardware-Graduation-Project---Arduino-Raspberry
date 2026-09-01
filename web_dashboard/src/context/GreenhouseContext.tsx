@@ -9,6 +9,7 @@ import {
   ConnectionStatus,
 } from '@/types/greenhouse';
 import { serialManager, isWebSerialSupported } from '@/lib/serial';
+import { greenhouseApi } from '@/lib/api';
 
 const DEFAULT_TELEMETRY: TelemetryData = {
   temperature: 24.5,
@@ -66,6 +67,11 @@ interface GreenhouseContextType {
   // Low water warning
   lowWaterWarning: { isOpen: boolean; message: string; type: 'water' | 'spray' };
   closeLowWaterWarning: () => void;
+
+  // Database
+  dbAvailable: boolean;
+  longTermHistory: TelemetryHistoryPoint[];
+  refreshLongTermHistory: (hours?: number) => Promise<void>;
 }
 
 const GreenhouseContext = createContext<GreenhouseContextType | undefined>(undefined);
@@ -82,46 +88,13 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const prevWaterLowRef = useRef(false);
   const prevSprayLowRef = useRef(false);
   const telemetryRef = useRef<TelemetryData>(DEFAULT_TELEMETRY);
+  const telemetryLogIntervalRef = useRef(60);
+  const serialLogEnabledRef = useRef(true);
+  const dbAvailableRef = useRef(false);
 
-  // Default initial schedules
-  const [schedules, setSchedules] = useState<WateringSchedule[]>([
-    {
-      id: '1',
-      name: 'Morning Irrigation',
-      time: '08:00',
-      enabled: true,
-      days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-      durationSeconds: 30,
-      type: 'watering',
-    },
-    {
-      id: '2',
-      name: 'Evening Hydration',
-      time: '18:00',
-      enabled: true,
-      days: ['Mon', 'Wed', 'Fri'],
-      durationSeconds: 45,
-      type: 'watering',
-    },
-    {
-      id: '3',
-      name: 'Morning Spray',
-      time: '07:00',
-      enabled: true,
-      days: ['Mon', 'Thu'],
-      durationSeconds: 20,
-      type: 'spraying',
-    },
-    {
-      id: '4',
-      name: 'Afternoon Spray',
-      time: '14:00',
-      enabled: true,
-      days: ['Tue', 'Fri'],
-      durationSeconds: 25,
-      type: 'spraying',
-    },
-  ]);
+  const [dbAvailable, setDbAvailable] = useState(false);
+  const [longTermHistory, setLongTermHistory] = useState<TelemetryHistoryPoint[]>([]);
+  const [schedules, setSchedules] = useState<WateringSchedule[]>([]);
 
   const addLog = useCallback((direction: 'IN' | 'OUT' | 'SYS', text: string) => {
     const newLog: SerialLog = {
@@ -131,6 +104,9 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       text,
     };
     setLogs((prev) => [newLog, ...prev.slice(0, 99)]);
+    if (serialLogEnabledRef.current && dbAvailableRef.current) {
+      greenhouseApi.logSerial(direction, text);
+    }
   }, []);
 
   const clearLogs = () => setLogs([]);
@@ -176,6 +152,59 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const isSprayBelow25 = (t: TelemetryData) =>
     t.sprayTankDist >= t.sprayTankEmptyThreshold * 0.75;
 
+  const calcTankPercent = (dist: number, emptyThreshold: number) => {
+    if (dist >= emptyThreshold) return 0;
+    return Math.round(Math.max(0, Math.min(100, ((emptyThreshold - dist) / emptyThreshold) * 100)) * 100) / 100;
+  };
+
+  const sendCommandRef = useRef<(cmd: string) => Promise<boolean>>(async () => false);
+
+  const refreshLongTermHistory = useCallback(async (hours = 24) => {
+    const result = await greenhouseApi.getTelemetryHistory(hours);
+    if (result?.history) {
+      setLongTermHistory(result.history);
+    }
+  }, []);
+
+  // Load settings, thresholds, and schedules from MySQL on startup
+  useEffect(() => {
+    const loadFromDatabase = async () => {
+      const settings = await greenhouseApi.getSystemSettings();
+      if (settings) {
+        setBaudRate(settings.baudRate);
+        telemetryLogIntervalRef.current = settings.telemetryLogIntervalSeconds;
+        serialLogEnabledRef.current = settings.serialLogEnabled;
+        dbAvailableRef.current = true;
+        setDbAvailable(true);
+        addLog('SYS', 'Connected to MySQL database');
+      }
+
+      const thresholds = await greenhouseApi.getThresholds();
+      if (thresholds) {
+        setTelemetry((prev) => ({
+          ...prev,
+          tempThreshold: thresholds.tempThreshold,
+          luxNightThreshold: thresholds.luxNightThreshold,
+          luxHighThreshold: thresholds.luxHighThreshold,
+          dryThreshold: thresholds.dryThreshold,
+          waterTankEmptyThreshold: thresholds.waterTankEmptyThreshold,
+          sprayTankEmptyThreshold: thresholds.sprayTankEmptyThreshold,
+        }));
+        addLog('SYS', 'Threshold settings loaded from database');
+      }
+
+      const scheduleData = await greenhouseApi.getSchedules();
+      if (scheduleData?.schedules?.length) {
+        setSchedules(scheduleData.schedules);
+        addLog('SYS', `Loaded ${scheduleData.schedules.length} schedules from database`);
+      }
+
+      await refreshLongTermHistory(24);
+    };
+
+    loadFromDatabase();
+  }, [addLog, refreshLongTermHistory]);
+
   // Show warning dialog when tank level drops below 25%
   useEffect(() => {
     const waterLow = isWaterBelow25(telemetry);
@@ -183,22 +212,36 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
     if (waterLow && !prevWaterLowRef.current) {
       prevWaterLowRef.current = true;
-      setLowWaterWarning({
-        isOpen: true,
-        message: 'Water level in the tank is below 25%. Irrigation has been cancelled.',
-        type: 'water',
-      });
+      const msg = 'Water level in the tank is below 25%. Irrigation has been cancelled.';
+      setLowWaterWarning({ isOpen: true, message: msg, type: 'water' });
+      if (dbAvailableRef.current) {
+        greenhouseApi.logTankWarning({
+          tankType: 'water',
+          distanceCm: telemetry.waterTankDist,
+          thresholdCm: telemetry.waterTankEmptyThreshold,
+          levelPercent: calcTankPercent(telemetry.waterTankDist, telemetry.waterTankEmptyThreshold),
+          message: msg,
+          source: isSimulating ? 'simulation' : 'dashboard',
+        });
+      }
     } else if (!waterLow) {
       prevWaterLowRef.current = false;
     }
 
     if (sprayLow && !prevSprayLowRef.current) {
       prevSprayLowRef.current = true;
-      setLowWaterWarning({
-        isOpen: true,
-        message: 'Spray tank level is below 25%. Spray has been cancelled.',
-        type: 'spray',
-      });
+      const msg = 'Spray tank level is below 25%. Spray has been cancelled.';
+      setLowWaterWarning({ isOpen: true, message: msg, type: 'spray' });
+      if (dbAvailableRef.current) {
+        greenhouseApi.logTankWarning({
+          tankType: 'spray',
+          distanceCm: telemetry.sprayTankDist,
+          thresholdCm: telemetry.sprayTankEmptyThreshold,
+          levelPercent: calcTankPercent(telemetry.sprayTankDist, telemetry.sprayTankEmptyThreshold),
+          message: msg,
+          source: isSimulating ? 'simulation' : 'dashboard',
+        });
+      }
     } else if (!sprayLow) {
       prevSprayLowRef.current = false;
     }
@@ -207,6 +250,7 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     telemetry.sprayTankDist,
     telemetry.waterTankEmptyThreshold,
     telemetry.sprayTankEmptyThreshold,
+    isSimulating,
   ]);
 
   // Setup Serial callbacks
@@ -252,6 +296,20 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     const success = await serialManager.connect(baudRate);
     if (success) {
       setStatus('CONNECTED');
+      const t = telemetryRef.current;
+      const commands = [
+        `SET_TEMP:${t.tempThreshold}`,
+        `SET_LUX_NIGHT:${t.luxNightThreshold}`,
+        `SET_LUX_HIGH:${t.luxHighThreshold}`,
+        `SET_SOIL:${t.dryThreshold}`,
+        `SET_WATER_TANK:${t.waterTankEmptyThreshold}`,
+        `SET_SPRAY_TANK:${t.sprayTankEmptyThreshold}`,
+      ];
+      for (const cmd of commands) {
+        await serialManager.sendCommand(cmd);
+        await new Promise((r) => setTimeout(r, 150));
+      }
+      addLog('SYS', 'Thresholds loaded from database and sent to Arduino');
     } else {
       setStatus('ERROR');
     }
@@ -317,6 +375,8 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return await serialManager.sendCommand(cmd);
   };
 
+  sendCommandRef.current = sendCommand;
+
   const updateThreshold = async (type: string, value: number) => {
     let cmd = '';
     switch (type) {
@@ -341,6 +401,9 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
     if (cmd) {
       await sendCommand(cmd);
+      if (dbAvailableRef.current) {
+        await greenhouseApi.saveThreshold(type, value);
+      }
     }
   };
 
@@ -469,31 +532,57 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     return () => clearInterval(interval);
   }, [isSimulating, addLog, recordHistoryPoint]);
 
+  // Log telemetry to MySQL every minute when system is active
+  useEffect(() => {
+    const isActive = status === 'CONNECTED' || status === 'SIMULATING';
+    if (!isActive || !dbAvailableRef.current) return;
+
+    const intervalMs = telemetryLogIntervalRef.current * 1000;
+    const interval = setInterval(() => {
+      greenhouseApi.logTelemetry(telemetryRef.current);
+    }, intervalMs);
+
+    return () => clearInterval(interval);
+  }, [status]);
+
   // Schedule operations
-  const addSchedule = (scheduleData: Omit<WateringSchedule, 'id'>) => {
+  const addSchedule = async (scheduleData: Omit<WateringSchedule, 'id'>) => {
+    const result = await greenhouseApi.createSchedule(scheduleData);
     const newSchedule: WateringSchedule = {
       ...scheduleData,
-      id: Math.random().toString(36).substring(2, 9),
+      id: result?.id || Math.random().toString(36).substring(2, 9),
     };
     setSchedules((prev) => [...prev, newSchedule]);
     addLog('SYS', `Schedule created: "${newSchedule.name}" at ${newSchedule.time}`);
   };
 
-  const updateSchedule = (id: string, updated: Partial<WateringSchedule>) => {
+  const updateSchedule = async (id: string, updated: Partial<WateringSchedule>) => {
     setSchedules((prev) =>
       prev.map((s) => (s.id === id ? { ...s, ...updated } : s))
     );
+    if (dbAvailableRef.current) {
+      await greenhouseApi.updateSchedule(id, updated);
+    }
   };
 
-  const deleteSchedule = (id: string) => {
+  const deleteSchedule = async (id: string) => {
     setSchedules((prev) => prev.filter((s) => s.id !== id));
+    if (dbAvailableRef.current) {
+      await greenhouseApi.deleteSchedule(id);
+    }
     addLog('SYS', `Schedule removed`);
   };
 
-  const toggleSchedule = (id: string) => {
+  const toggleSchedule = async (id: string) => {
+    const schedule = schedules.find((s) => s.id === id);
+    if (!schedule) return;
+    const newEnabled = !schedule.enabled;
     setSchedules((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, enabled: !s.enabled } : s))
+      prev.map((s) => (s.id === id ? { ...s, enabled: newEnabled } : s))
     );
+    if (dbAvailableRef.current) {
+      await greenhouseApi.updateSchedule(id, { enabled: newEnabled });
+    }
   };
 
   // Automated Schedule Trigger Checker Loop
@@ -511,12 +600,21 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           if (lastTriggeredRef.current[sch.id] !== todayKey) {
             lastTriggeredRef.current[sch.id] = todayKey;
             addLog('SYS', `Automated Schedule Triggered: "${sch.name}" (${sch.time})`);
+            const command = sch.type === 'spraying' ? 'SPRAY_START' : 'WATER_START';
             if (sch.type === 'spraying') {
               startSprayCycle();
             } else {
               startWateringCycle();
             }
             updateSchedule(sch.id, { lastRun: new Date().toLocaleTimeString() });
+            if (dbAvailableRef.current) {
+              greenhouseApi.logScheduleExecution({
+                scheduleId: sch.id,
+                type: sch.type,
+                success: true,
+                commandSent: command,
+              });
+            }
           }
         }
       });
@@ -532,7 +630,12 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         history,
         status,
         baudRate,
-        setBaudRate,
+        setBaudRate: (baud: number) => {
+          setBaudRate(baud);
+          if (dbAvailableRef.current) {
+            greenhouseApi.saveSystemSettings({ baudRate: baud });
+          }
+        },
         logs,
         clearLogs,
         isSimulating,
@@ -553,6 +656,9 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         startWateringCycle,
         lowWaterWarning,
         closeLowWaterWarning,
+        dbAvailable,
+        longTermHistory,
+        refreshLongTermHistory,
       }}
     >
       {children}

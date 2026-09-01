@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useGreenhouse } from '@/context/GreenhouseContext';
 import {
   ResponsiveContainer,
@@ -14,7 +14,20 @@ import {
 import { LineChart as LineChartIcon, Activity } from 'lucide-react';
 
 export const TelemetryCharts: React.FC = () => {
-  const { history } = useGreenhouse();
+  const { history, longTermHistory, refreshLongTermHistory, dbAvailable } = useGreenhouse();
+  const [viewMode, setViewMode] = useState<'live' | 'db'>('live');
+  const [dbHours, setDbHours] = useState(24);
+
+  const chartData = viewMode === 'live' ? history : longTermHistory;
+
+  const handleViewChange = async (mode: 'live' | 'db', hours?: number) => {
+    setViewMode(mode);
+    if (mode === 'db') {
+      const h = hours ?? dbHours;
+      if (hours) setDbHours(hours);
+      await refreshLongTermHistory(h);
+    }
+  };
 
   const tooltipStyle = {
     backgroundColor: '#ffffff',
@@ -33,12 +46,38 @@ export const TelemetryCharts: React.FC = () => {
             TELEMETRY HISTORY &amp; TRENDS
           </h2>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            Real-time live trends for environmental conditions and soil telemetry
+            {viewMode === 'live'
+              ? 'Real-time live trends for environmental conditions and soil telemetry'
+              : `Historical data from MySQL (logged every minute, last ${dbHours}h)`}
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
-          <Activity className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
-          <span>{history.length} Data Points</span>
+        <div className="flex items-center gap-3">
+          {dbAvailable && (
+            <div className="flex items-center gap-1 text-xs">
+              <button
+                onClick={() => handleViewChange('live')}
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-colors ${viewMode === 'live' ? 'bg-sky-100 text-sky-700' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                Live
+              </button>
+              <button
+                onClick={() => handleViewChange('db', 24)}
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-colors ${viewMode === 'db' && dbHours === 24 ? 'bg-sky-100 text-sky-700' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                24h
+              </button>
+              <button
+                onClick={() => handleViewChange('db', 168)}
+                className={`px-2.5 py-1 rounded-lg font-semibold transition-colors ${viewMode === 'db' && dbHours === 168 ? 'bg-sky-100 text-sky-700' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                7d
+              </button>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-xs font-mono" style={{ color: 'var(--text-muted)' }}>
+            <Activity className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+            <span>{chartData.length} Data Points</span>
+          </div>
         </div>
       </div>
 
@@ -61,13 +100,13 @@ export const TelemetryCharts: React.FC = () => {
           </div>
 
           <div className="h-64 w-full">
-            {history.length === 0 ? (
+            {chartData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs" style={{ color: 'var(--text-muted)' }}>
-                Waiting for serial stream data...
+                {viewMode === 'live' ? 'Waiting for serial stream data...' : 'No historical data in database yet'}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e0f2fe" />
                   <XAxis dataKey="timestamp" stroke="#94a3b8" fontSize={10} tickLine={false} />
                   <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} domain={[0, 'auto']} />
@@ -97,13 +136,13 @@ export const TelemetryCharts: React.FC = () => {
           </div>
 
           <div className="h-64 w-full">
-            {history.length === 0 ? (
+            {chartData.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs" style={{ color: 'var(--text-muted)' }}>
-                Waiting for serial stream data...
+                {viewMode === 'live' ? 'Waiting for serial stream data...' : 'No historical data in database yet'}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e0f2fe" />
                   <XAxis dataKey="timestamp" stroke="#94a3b8" fontSize={10} tickLine={false} />
                   <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} domain={[0, 'auto']} />
