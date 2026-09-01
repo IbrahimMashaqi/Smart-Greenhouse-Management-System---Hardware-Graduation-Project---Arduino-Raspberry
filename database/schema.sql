@@ -223,6 +223,23 @@ CREATE TABLE IF NOT EXISTS connection_sessions (
 ) ENGINE=InnoDB;
 
 -- ------------------------------------------------------------
+-- Planting robot events
+-- ------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS planting_events (
+  id            BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  device_id     INT UNSIGNED NOT NULL,
+  started_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  finished_at   DATETIME NULL,
+  status        ENUM('RUNNING','COMPLETED','INTERRUPTED') NOT NULL DEFAULT 'RUNNING',
+  plants_planted INT UNSIGNED NOT NULL DEFAULT 0,
+  trigger_source ENUM('manual','schedule','simulation') NOT NULL DEFAULT 'manual',
+  notes         VARCHAR(255) NULL,
+  INDEX idx_planting_device_time (device_id, started_at),
+  CONSTRAINT fk_planting_device
+    FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ------------------------------------------------------------
 -- Daily aggregated statistics (pre-computed for fast dashboards)
 -- ------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS daily_statistics (
@@ -250,6 +267,8 @@ CREATE TABLE IF NOT EXISTS daily_statistics (
 
   irrigation_runs       INT UNSIGNED NOT NULL DEFAULT 0,
   spray_runs            INT UNSIGNED NOT NULL DEFAULT 0,
+  planting_runs         INT UNSIGNED NOT NULL DEFAULT 0,
+  plants_planted        INT UNSIGNED NOT NULL DEFAULT 0,
   water_warnings        INT UNSIGNED NOT NULL DEFAULT 0,
   spray_warnings        INT UNSIGNED NOT NULL DEFAULT 0,
   reading_count         INT UNSIGNED NOT NULL DEFAULT 0,

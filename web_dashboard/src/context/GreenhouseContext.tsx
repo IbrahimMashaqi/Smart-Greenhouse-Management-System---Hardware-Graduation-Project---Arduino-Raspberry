@@ -5,6 +5,7 @@ import {
   TelemetryData,
   TelemetryHistoryPoint,
   WateringSchedule,
+  PlantingEvent,
   SerialLog,
   ConnectionStatus,
 } from '@/types/greenhouse';
@@ -27,6 +28,8 @@ const DEFAULT_TELEMETRY: TelemetryData = {
   sprayTankDist: 7.2,
   sprayTankOK: true,
   sprayRunning: false,
+  plantRunning: false,
+  plantsPlanted: 0,
   tempThreshold: 28.0,
   luxNightThreshold: 30.0,
   luxHighThreshold: 100.0,
@@ -68,6 +71,12 @@ interface GreenhouseContextType {
   lowWaterWarning: { isOpen: boolean; message: string; type: 'water' | 'spray' };
   closeLowWaterWarning: () => void;
 
+  // Planting
+  plantingEvents: PlantingEvent[];
+  startPlanting: () => Promise<void>;
+  stopPlanting: () => Promise<void>;
+  refreshPlantingEvents: () => Promise<void>;
+
   // Database
   dbAvailable: boolean;
   longTermHistory: TelemetryHistoryPoint[];
@@ -85,6 +94,8 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
   const [medicineModalOpen, setMedicineModalOpen] = useState<boolean>(false);
   const [lowWaterWarning, setLowWaterWarning] = useState<{ isOpen: boolean; message: string; type: 'water' | 'spray' }>({ isOpen: false, message: '', type: 'water' });
+  const [plantingEvents, setPlantingEvents] = useState<PlantingEvent[]>([]);
+  const currentPlantingIdRef = useRef<number | null>(null);
   const prevWaterLowRef = useRef(false);
   const prevSprayLowRef = useRef(false);
   const telemetryRef = useRef<TelemetryData>(DEFAULT_TELEMETRY);
@@ -166,6 +177,13 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     }
   }, []);
 
+  const refreshPlantingEvents = useCallback(async () => {
+    const result = await greenhouseApi.getPlantingEvents(20);
+    if (result?.events) {
+      setPlantingEvents(result.events);
+    }
+  }, []);
+
   // Load settings, thresholds, and schedules from MySQL on startup
   useEffect(() => {
     const loadFromDatabase = async () => {
@@ -200,10 +218,12 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
 
       await refreshLongTermHistory(24);
+
+      await refreshPlantingEvents();
     };
 
     loadFromDatabase();
-  }, [addLog, refreshLongTermHistory]);
+  }, [addLog, refreshLongTermHistory, refreshPlantingEvents]);
 
   // Show warning dialog when tank level drops below 25%
   useEffect(() => {
@@ -262,29 +282,59 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         addLog('SYS', `Error: ${err.message}`);
         setStatus('ERROR');
       },
-      onWarning: (warning) => {
-        if (warning === 'WATER_LOW' && !prevWaterLowRef.current) {
-          prevWaterLowRef.current = true;
-          setLowWaterWarning({
-            isOpen: true,
-            message: 'Water level in the tank is below 25%. Irrigation has been cancelled by the controller.',
-            type: 'water',
-          });
-        } else if (warning === 'SPRAY_LOW' && !prevSprayLowRef.current) {
-          prevSprayLowRef.current = true;
-          setLowWaterWarning({
-            isOpen: true,
-            message: 'Spray tank level is below 25%. Spray has been cancelled by the controller.',
-            type: 'spray',
-          });
-        } else if (warning === 'WATER_OK') {
-          prevWaterLowRef.current = false;
-        } else if (warning === 'SPRAY_OK') {
-          prevSprayLowRef.current = false;
-        }
-      },
+        onWarning: (warning) => {
+          if (warning === 'WATER_LOW' && !prevWaterLowRef.current) {
+            prevWaterLowRef.current = true;
+            setLowWaterWarning({
+              isOpen: true,
+              message: 'Water level in the tank is below 25%. Irrigation has been cancelled by the controller.',
+              type: 'water',
+            });
+          } else if (warning === 'SPRAY_LOW' && !prevSprayLowRef.current) {
+            prevSprayLowRef.current = true;
+            setLowWaterWarning({
+              isOpen: true,
+              message: 'Spray tank level is below 25%. Spray has been cancelled by the controller.',
+              type: 'spray',
+            });
+          } else if (warning === 'WATER_OK') {
+            prevWaterLowRef.current = false;
+          } else if (warning === 'SPRAY_OK') {
+            prevSprayLowRef.current = false;
+          }
+        },
+        onPlantingEvent: (event) => {
+          if (event === 'PLANT_STARTED') {
+            setTelemetry((t) => ({ ...t, plantRunning: true, plantsPlanted: 0 }));
+          } else if (event.startsWith('PLANT_DONE')) {
+            const match = event.match(/(\d+)/);
+            const count = match ? parseInt(match[1]) : 0;
+            setTelemetry((t) => ({ ...t, plantRunning: false, plantsPlanted: count }));
+            const finishLog = async () => {
+              if (dbAvailableRef.current && currentPlantingIdRef.current) {
+                await greenhouseApi.logPlantingFinish(currentPlantingIdRef.current, 'COMPLETED', count);
+                currentPlantingIdRef.current = null;
+              }
+              await refreshPlantingEvents();
+            };
+            finishLog();
+          } else if (event === 'PLANT_INTERRUPTED') {
+            setTelemetry((t) => ({ ...t, plantRunning: false }));
+            const finishLog = async () => {
+              if (dbAvailableRef.current && currentPlantingIdRef.current) {
+                const currentPlanted = telemetryRef.current.plantsPlanted;
+                await greenhouseApi.logPlantingFinish(currentPlantingIdRef.current, 'INTERRUPTED', currentPlanted);
+                currentPlantingIdRef.current = null;
+              }
+              await refreshPlantingEvents();
+            };
+            finishLog();
+          } else if (event === 'PLANT_STOPPING') {
+            addLog('SYS', 'Planting is stopping...');
+          }
+        },
     });
-  }, [handleNewTelemetry, addLog]);
+  }, [handleNewTelemetry, addLog, refreshPlantingEvents]);
 
   // Connect Web Serial Port
   const connectPort = async () => {
@@ -360,6 +410,12 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           }, 4000);
         } else if (cmd === 'SPRAY_START') {
           setMedicineModalOpen(true);
+        } else if (cmd === 'PLANT_START') {
+          setTelemetry((t) => ({ ...t, plantRunning: true, plantsPlanted: 0 }));
+          addLog('IN', 'PLANT_STARTED');
+        } else if (cmd === 'PLANT_STOP') {
+          setTelemetry((t) => ({ ...t, plantRunning: false }));
+          addLog('IN', 'PLANT_INTERRUPTED');
         } else if (cmd === 'o' || cmd === 'O') {
           setTelemetry((t) => ({ ...t, sprayRunning: true }));
           addLog('IN', 'SPRAY ON');
@@ -447,6 +503,61 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const closeLowWaterWarning = () => {
     setLowWaterWarning({ isOpen: false, message: '', type: 'water' });
+  };
+
+  // Planting operations
+  const startPlanting = async () => {
+    if (status === 'SIMULATING' || isSimulating) {
+      // Simulate planting start
+      addLog('OUT', 'PLANT_START');
+      setTelemetry((t) => ({ ...t, plantRunning: true, plantsPlanted: 0 }));
+      addLog('IN', 'PLANT_STARTED');
+      try {
+        const result = await greenhouseApi.logPlantingStart('simulation');
+        currentPlantingIdRef.current = result?.id || null;
+      } catch { /* db may not be available */ }
+      // Simulate planting completion after 8 seconds
+      setTimeout(async () => {
+        const planted = 7;
+        setTelemetry((t) => ({ ...t, plantRunning: false, plantsPlanted: planted }));
+        addLog('IN', `PLANT_DONE: ${planted}`);
+        try {
+          if (currentPlantingIdRef.current) {
+            await greenhouseApi.logPlantingFinish(currentPlantingIdRef.current, 'COMPLETED', planted);
+            currentPlantingIdRef.current = null;
+          }
+        } catch { /* db may not be available */ }
+        await refreshPlantingEvents();
+      }, 8000);
+      return;
+    }
+
+    await sendCommand('PLANT_START');
+    try {
+      const result = await greenhouseApi.logPlantingStart('manual');
+      currentPlantingIdRef.current = result?.id || null;
+    } catch { /* db may not be available */ }
+    addLog('SYS', 'Planting started');
+  };
+
+  const stopPlanting = async () => {
+    if (status === 'SIMULATING' || isSimulating) {
+      addLog('OUT', 'PLANT_STOP');
+      setTelemetry((t) => ({ ...t, plantRunning: false }));
+      addLog('IN', 'PLANT_INTERRUPTED');
+      try {
+        if (currentPlantingIdRef.current) {
+          const currentPlanted = telemetryRef.current.plantsPlanted;
+          await greenhouseApi.logPlantingFinish(currentPlantingIdRef.current, 'INTERRUPTED', currentPlanted);
+          currentPlantingIdRef.current = null;
+        }
+      } catch { /* db may not be available */ }
+      await refreshPlantingEvents();
+      return;
+    }
+
+    await sendCommand('PLANT_STOP');
+    addLog('SYS', 'Planting interrupt requested');
   };
 
   // Toggle Simulation Mode
@@ -656,6 +767,10 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         startWateringCycle,
         lowWaterWarning,
         closeLowWaterWarning,
+        plantingEvents,
+        startPlanting,
+        stopPlanting,
+        refreshPlantingEvents,
         dbAvailable,
         longTermHistory,
         refreshLongTermHistory,

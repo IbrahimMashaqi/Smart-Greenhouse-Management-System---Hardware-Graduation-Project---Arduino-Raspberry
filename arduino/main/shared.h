@@ -33,4 +33,9 @@ extern bool   sprayTankOK;
 extern bool   sprayRunning;
 extern float  sprayTankEmptyThreshold;
 
+// --- Planting Robot (معرّفة في planting_robot.ino / main.ino) ---
+extern bool   plantRunning;
+extern bool   plantingInterrupted;
+extern int    plantsPlantedCount;
+
 #endif

@@ -16,17 +16,20 @@ export class SerialManager {
   private onLogCallback: ((direction: 'IN' | 'OUT' | 'SYS', text: string) => void) | null = null;
   private onErrorCallback: ((err: Error) => void) | null = null;
   private onWarningCallback: ((warning: string) => void) | null = null;
+  private onPlantingCallback: ((event: string, data?: string) => void) | null = null;
 
   public setCallbacks(callbacks: {
     onData?: (data: TelemetryData, rawJson: string) => void;
     onLog?: (direction: 'IN' | 'OUT' | 'SYS', text: string) => void;
     onError?: (err: Error) => void;
     onWarning?: (warning: string) => void;
+    onPlantingEvent?: (event: string, data?: string) => void;
   }) {
     if (callbacks.onData) this.onDataCallback = callbacks.onData;
     if (callbacks.onLog) this.onLogCallback = callbacks.onLog;
     if (callbacks.onError) this.onErrorCallback = callbacks.onError;
     if (callbacks.onWarning) this.onWarningCallback = callbacks.onWarning;
+    if (callbacks.onPlantingEvent) this.onPlantingCallback = callbacks.onPlantingEvent;
   }
 
   public async connect(baudRate: number = 9600): Promise<boolean> {
@@ -96,6 +99,13 @@ export class SerialManager {
           this.onWarningCallback(warningType);
         }
         continue;
+      }
+
+      // Check for planting event messages
+      if (line.startsWith('PLANT_')) {
+        if (this.onPlantingCallback) {
+          this.onPlantingCallback(line);
+        }
       }
 
       if (line.startsWith('{') && line.endsWith('}')) {

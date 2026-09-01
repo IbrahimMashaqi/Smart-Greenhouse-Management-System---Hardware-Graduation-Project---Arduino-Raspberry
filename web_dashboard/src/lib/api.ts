@@ -1,4 +1,4 @@
-import { TelemetryData, TelemetryHistoryPoint, WateringSchedule } from '@/types/greenhouse';
+import { TelemetryData, TelemetryHistoryPoint, WateringSchedule, PlantingEvent } from '@/types/greenhouse';
 
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T | null> {
   try {
@@ -119,4 +119,19 @@ export const greenhouseApi = {
 
   getStatistics: (period: 'day' | 'week' | 'month' = 'day') =>
     apiFetch(`/api/statistics?period=${period}`),
+
+  logPlantingStart: (triggerSource: 'manual' | 'schedule' | 'simulation' = 'manual') =>
+    apiFetch<{ id: number }>('/api/planting-events', {
+      method: 'POST',
+      body: JSON.stringify({ action: 'start', triggerSource }),
+    }),
+
+  logPlantingFinish: (id: number, status: 'COMPLETED' | 'INTERRUPTED', plantsPlanted: number) =>
+    apiFetch('/api/planting-events', {
+      method: 'PATCH',
+      body: JSON.stringify({ id, status, plantsPlanted }),
+    }),
+
+  getPlantingEvents: (limit = 20) =>
+    apiFetch<{ events: PlantingEvent[] }>(`/api/planting-events?limit=${limit}`),
 };

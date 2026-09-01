@@ -41,6 +41,11 @@ bool   sprayTankOK             = true;
 bool   sprayRunning            = false;
 float  sprayTankEmptyThreshold = 10.5;
 
+// Planting Robot
+bool   plantRunning            = false;
+bool   plantingInterrupted     = false;
+int    plantsPlantedCount      = 0;
+
 // =========================================
 
 void setup() {
@@ -49,6 +54,7 @@ void setup() {
   umbrellaSetup();
   irrigationSetup();
   spraySetup();
+  plantingSetup();
   Serial.println("SYSTEM READY");
 }
 
@@ -59,5 +65,6 @@ void loop() {
   irrigationLoop();
   sprayLoop();
   handleSerialCommands();
+  plantingLoop();
   sendSensorData();
 }

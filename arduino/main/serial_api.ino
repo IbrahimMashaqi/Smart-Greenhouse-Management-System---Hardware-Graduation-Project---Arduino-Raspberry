@@ -25,6 +25,8 @@ void sendSensorData() {
   Serial.print("\"sprayTankDist\":"); Serial.print(sprayTankDist, 1); Serial.print(",");
   Serial.print("\"sprayTankOK\":"); Serial.print(sprayTankOK ? "true" : "false"); Serial.print(",");
   Serial.print("\"sprayRunning\":"); Serial.print(sprayRunning ? "true" : "false"); Serial.print(",");
+  Serial.print("\"plantRunning\":"); Serial.print(plantRunning ? "true" : "false"); Serial.print(",");
+  Serial.print("\"plantsPlanted\":"); Serial.print(plantsPlantedCount); Serial.print(",");
   Serial.print("\"tempThreshold\":"); Serial.print(tempThreshold, 1); Serial.print(",");
   Serial.print("\"luxNightThreshold\":"); Serial.print(luxNightThreshold, 1); Serial.print(",");
   Serial.print("\"luxHighThreshold\":"); Serial.print(luxHighThreshold, 1); Serial.print(",");
@@ -61,5 +63,23 @@ void handleSerialCommands() {
     runIrrigation();
   } else if (cmd == "SPRAY_START" || cmd == "s" || cmd == "S") {
     runSprayCycle();
+  } else if (cmd == "PLANT_START") {
+    if (!plantRunning) {
+      plantRunning = true;
+      plantingInterrupted = false;
+      plantsPlantedCount = 0;
+      Serial.println("PLANT_STARTED");
+    }
+  } else if (cmd == "PLANT_STOP" && plantRunning) {
+    plantingInterrupted = true;
+    Serial.println("PLANT_STOPPING");
+  } else if (cmd == "PLANT_STATUS") {
+    Serial.print("{\"plantRunning\":");
+    Serial.print(plantRunning ? "true" : "false");
+    Serial.print(",\"plantsPlanted\":");
+    Serial.print(plantsPlantedCount);
+    Serial.print(",\"interrupted\":");
+    Serial.print(plantingInterrupted ? "true" : "false");
+    Serial.println("}");
   }
 }

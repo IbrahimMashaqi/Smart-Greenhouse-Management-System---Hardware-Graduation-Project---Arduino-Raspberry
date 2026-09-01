@@ -6,6 +6,7 @@ import { TelemetryStats } from '@/components/TelemetryStats';
 import { ActuatorStatus } from '@/components/ActuatorStatus';
 import { ThresholdConfigurator } from '@/components/ThresholdConfigurator';
 import { WateringScheduler } from '@/components/WateringScheduler';
+import { PlantingRobot } from '@/components/PlantingRobot';
 import { TelemetryCharts } from '@/components/TelemetryCharts';
 import { SerialConsole } from '@/components/SerialConsole';
 import { MedicineModal } from '@/components/MedicineModal';
@@ -91,9 +92,10 @@ export default function Home() {
           </div>
         )}
 
-        {/* CONTROLS — Watering Scheduler */}
+        {/* CONTROLS — Watering Scheduler + Planting Robot */}
         {activePage === 'controls' && (
-          <div className="page-enter">
+          <div className="space-y-6 page-enter">
+            <PlantingRobot />
             <WateringScheduler />
           </div>
         )}

@@ -14,6 +14,8 @@ export interface TelemetryData {
   sprayTankDist: number;
   sprayTankOK: boolean;
   sprayRunning: boolean;
+  plantRunning: boolean;
+  plantsPlanted: number;
   
   // Dynamic Thresholds from Arduino
   tempThreshold: number;
@@ -22,6 +24,17 @@ export interface TelemetryData {
   dryThreshold: number;
   waterTankEmptyThreshold: number;
   sprayTankEmptyThreshold: number;
+}
+
+export interface PlantingEvent {
+  id: number;
+  device_id: number;
+  started_at: string;
+  finished_at: string | null;
+  status: 'RUNNING' | 'COMPLETED' | 'INTERRUPTED';
+  plants_planted: number;
+  trigger_source: 'manual' | 'schedule' | 'simulation';
+  notes: string | null;
 }
 
 export interface TelemetryHistoryPoint {

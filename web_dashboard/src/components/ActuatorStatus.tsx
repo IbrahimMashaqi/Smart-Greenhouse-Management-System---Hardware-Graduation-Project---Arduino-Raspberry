@@ -8,6 +8,7 @@ import {
   Umbrella,
   ShowerHead,
   SprayCan,
+  Sprout,
   Power
 } from 'lucide-react';
 
@@ -23,12 +24,12 @@ export const ActuatorStatus: React.FC = () => {
             ACTUATORS &amp; HARDWARE STATUS
           </h2>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-secondary)' }}>
-            Real-time status of connected fans, lighting, umbrella motor, irrigation pump, and spray module
+            Real-time status of connected fans, lighting, umbrella motor, irrigation pump, spray module, and planting robot
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
 
         {/* 1. Fans */}
         <div className={`p-4 rounded-xl border transition-all ${
@@ -179,6 +180,32 @@ export const ActuatorStatus: React.FC = () => {
             >
               Spray
             </button>
+          </div>
+        </div>
+
+        {/* 6. Planting Robot */}
+        <div className={`p-4 rounded-xl border transition-all ${
+          telemetry.plantRunning
+            ? 'bg-emerald-50 border-emerald-200 pulse-glow-emerald'
+            : 'bg-white border-slate-200'
+        }`}>
+          <div className="flex items-center justify-between">
+            <div className={`p-2 rounded-lg ${telemetry.plantRunning ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+              <Sprout className={`w-5 h-5 ${telemetry.plantRunning ? 'animate-pulse' : ''}`} />
+            </div>
+            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+              telemetry.plantRunning ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+            }`}>
+              {telemetry.plantRunning ? 'PLANTING' : 'IDLE'}
+            </span>
+          </div>
+          <div className="mt-3">
+            <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Planting Robot</h3>
+            <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              {telemetry.plantRunning
+                ? `Planting seeds... ${telemetry.plantsPlanted}/7`
+                : `Ready — Last: ${telemetry.plantsPlanted} plants`}
+            </p>
           </div>
         </div>
 
