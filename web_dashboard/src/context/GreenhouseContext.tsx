@@ -225,54 +225,6 @@ export const GreenhouseProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     loadFromDatabase();
   }, [addLog, refreshLongTermHistory, refreshPlantingEvents]);
 
-  // Show warning dialog when tank level drops below 25%
-  useEffect(() => {
-    const waterLow = isWaterBelow25(telemetry);
-    const sprayLow = isSprayBelow25(telemetry);
-
-    if (waterLow && !prevWaterLowRef.current) {
-      prevWaterLowRef.current = true;
-      const msg = 'Water level in the tank is below 25%. Irrigation has been cancelled.';
-      setLowWaterWarning({ isOpen: true, message: msg, type: 'water' });
-      if (dbAvailableRef.current) {
-        greenhouseApi.logTankWarning({
-          tankType: 'water',
-          distanceCm: telemetry.waterTankDist,
-          thresholdCm: telemetry.waterTankEmptyThreshold,
-          levelPercent: calcTankPercent(telemetry.waterTankDist, telemetry.waterTankEmptyThreshold),
-          message: msg,
-          source: isSimulating ? 'simulation' : 'dashboard',
-        });
-      }
-    } else if (!waterLow) {
-      prevWaterLowRef.current = false;
-    }
-
-    if (sprayLow && !prevSprayLowRef.current) {
-      prevSprayLowRef.current = true;
-      const msg = 'Spray tank level is below 25%. Spray has been cancelled.';
-      setLowWaterWarning({ isOpen: true, message: msg, type: 'spray' });
-      if (dbAvailableRef.current) {
-        greenhouseApi.logTankWarning({
-          tankType: 'spray',
-          distanceCm: telemetry.sprayTankDist,
-          thresholdCm: telemetry.sprayTankEmptyThreshold,
-          levelPercent: calcTankPercent(telemetry.sprayTankDist, telemetry.sprayTankEmptyThreshold),
-          message: msg,
-          source: isSimulating ? 'simulation' : 'dashboard',
-        });
-      }
-    } else if (!sprayLow) {
-      prevSprayLowRef.current = false;
-    }
-  }, [
-    telemetry.waterTankDist,
-    telemetry.sprayTankDist,
-    telemetry.waterTankEmptyThreshold,
-    telemetry.sprayTankEmptyThreshold,
-    isSimulating,
-  ]);
-
   // Setup Serial callbacks
   useEffect(() => {
     serialManager.setCallbacks({

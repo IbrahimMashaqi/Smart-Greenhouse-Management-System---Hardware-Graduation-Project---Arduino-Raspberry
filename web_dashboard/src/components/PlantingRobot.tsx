@@ -139,11 +139,11 @@ export const PlantingRobot: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                      {event.status === 'COMPLETED'
-                        ? `${event.plants_planted} plants sown`
+                      {event.status === 'RUNNING'
+                        ? 'In progress...'
                         : event.status === 'INTERRUPTED'
-                        ? `${event.plants_planted} plants sown (interrupted)`
-                        : 'In progress...'}
+                        ? 'Interrupted'
+                        : 'Completed'}
                     </p>
                     <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
                       Started: {new Date(event.started_at).toLocaleString()}

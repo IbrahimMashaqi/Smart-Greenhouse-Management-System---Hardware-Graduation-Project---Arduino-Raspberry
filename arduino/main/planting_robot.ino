@@ -139,7 +139,7 @@ void fillSeeds() {
   }
   plantingDelay(300);
   digitalWrite(PUMB_PIN, HIGH);
-  plantingDelay(4000);
+  plantingDelay(3000);
 }
 
 // =====================
@@ -165,8 +165,8 @@ void plantSeeds() {
     digitalWrite(PUMB_PIN, LOW);
     return;
   }
-  moveNeck(73, 60);
-  moveElbow(75, 60);
+  moveNeck(72, 60);
+  moveElbow(76, 60);
   if (plantingInterrupted) {
     digitalWrite(PUMB_PIN, LOW);
     return;
@@ -236,7 +236,7 @@ void plant_7() {
     moveArm(HIGH);
   }
   if (!plantingInterrupted) {
-    fillSeeds();
+     
   }
 }
 
@@ -288,8 +288,7 @@ void plantingSetup() {
 
   digitalWrite(DIR, HIGH);
 
-  elbow.attach(A6);
-  neck.attach(A5);
+
 
   elbow.write(elbowAngle);
   neck.write(neckAngle);
@@ -298,9 +297,15 @@ void plantingSetup() {
 // =====================
 void plantingLoop() {
   if (plantRunning && !plantingInterrupted) {
+    elbow.attach(A6);
+    neck.attach(A5);
     plant_7();
     if (!plantingInterrupted) {
       homeArm();
+      moveNeck(32, 40);
+      moveElbow(18, 40);
+      neck.detach();
+      elbow.detach();
     }
     plantRunning = false;
     Serial.print("PLANT_DONE:");
